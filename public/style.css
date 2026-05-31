@@ -946,3 +946,80 @@ input, textarea { user-select: text; }
   transition: background .15s;
 }
 .btn-sp-reset:hover { background: rgba(255,255,255,.09); color: var(--t1); }
+
+/* ═══════════════════════════════════════════ INSTALL BANNER ══ */
+.install-banner {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 999;
+  padding: 0 12px 12px;
+  animation: bannerIn .45s cubic-bezier(.34,1.56,.64,1) both;
+}
+.install-banner.banner-out { animation: bannerOut .35s ease forwards; }
+
+@keyframes bannerIn  { from { transform: translateY(120%); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes bannerOut { from { transform: none; opacity: 1; } to { transform: translateY(120%); opacity: 0; } }
+
+.install-banner-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(13,17,40,.97);
+  border: 1px solid rgba(129,140,248,.25);
+  border-radius: 20px;
+  padding: 14px 16px;
+  box-shadow: 0 -4px 40px rgba(99,102,241,.2), 0 8px 40px rgba(0,0,0,.6);
+  backdrop-filter: blur(30px);
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.install-logo {
+  width: 48px; height: 48px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  border: 1px solid rgba(129,140,248,.2);
+}
+
+.install-text { flex: 1; min-width: 0; }
+.install-title {
+  font-size: 14px; font-weight: 700;
+  color: var(--t1); letter-spacing: -.2px;
+  margin-bottom: 3px;
+}
+.install-sub {
+  font-size: 12px; color: var(--t2);
+  line-height: 1.4;
+}
+.install-sub strong { color: var(--indigo); font-weight: 600; }
+
+.install-btn {
+  padding: 9px 18px;
+  background: linear-gradient(135deg, var(--indigo-d), var(--violet));
+  border: none; border-radius: var(--r-full);
+  color: #fff; font-size: 13px; font-weight: 700;
+  font-family: var(--font); cursor: pointer;
+  box-shadow: 0 2px 14px var(--glow-indigo);
+  transition: transform .15s var(--spring), box-shadow .15s;
+  flex-shrink: 0; white-space: nowrap;
+}
+.install-btn:hover { transform: scale(1.05); box-shadow: 0 4px 20px var(--glow-indigo); }
+.install-btn:active { transform: scale(.97); }
+
+.install-dismiss {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.1);
+  color: var(--t3); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: background .15s, color .15s;
+}
+.install-dismiss:hover { background: rgba(255,255,255,.1); color: var(--t1); }
+
+/* Push bottom-nav up when banner is visible on mobile */
+@media (max-width: 768px) {
+  .install-banner { padding-bottom: env(safe-area-inset-bottom, 12px); }
+  .install-banner:not(.hidden) ~ * .bottom-nav,
+  body:has(.install-banner:not(.hidden)) .bottom-nav { margin-bottom: 90px; }
+}

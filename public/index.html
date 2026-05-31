@@ -11,7 +11,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📻</text></svg>">
+  <link rel="icon" type="image/svg+xml" href="/logo.svg">
+  <link rel="apple-touch-icon" href="/logo.svg">
+  <meta name="apple-mobile-web-app-title" content="Talkie">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -309,5 +311,84 @@ window.addEventListener('resize', () => {
 </script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="app.js"></script>
+
+<!-- ═══════════════════════════════════ INSTALL BANNER ══ -->
+<div class="install-banner hidden" id="install-banner">
+  <div class="install-banner-inner">
+    <img src="/logo.svg" class="install-logo" alt="WalkieTalkie logo">
+    <div class="install-text">
+      <div class="install-title">Install WalkieTalkie</div>
+      <div class="install-sub" id="install-sub">Add to your home screen for the best experience</div>
+    </div>
+    <button class="install-btn" id="install-btn">Install</button>
+    <button class="install-dismiss" id="install-dismiss" aria-label="Dismiss">
+      <svg viewBox="0 0 20 20" fill="currentColor" width="16"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+    </button>
+  </div>
+</div>
+
+<script>
+(function() {
+  const banner   = document.getElementById('install-banner');
+  const btn      = document.getElementById('install-btn');
+  const dismiss  = document.getElementById('install-dismiss');
+  const sub      = document.getElementById('install-sub');
+
+  if (localStorage.getItem('wt_install_dismissed')) return;
+  if (window.matchMedia('(display-mode: standalone)').matches) return;
+  if (navigator.standalone) return; // already installed on iOS
+
+  const isIOS     = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isSafari  = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  const isAndroid = /android/i.test(navigator.userAgent);
+
+  let deferredPrompt = null;
+
+  // Android / Chrome — native install prompt
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredPrompt = e;
+    sub.textContent = 'Get the full app experience — works offline too';
+    setTimeout(() => banner.classList.remove('hidden'), 3000);
+  });
+
+  // iOS Safari — manual instructions
+  if (isIOS && isSafari) {
+    sub.innerHTML = 'Tap <strong>Share</strong> then <strong>"Add to Home Screen"</strong>';
+    btn.textContent = 'Got it';
+    btn.addEventListener('click', () => {
+      banner.classList.add('banner-out');
+      setTimeout(() => banner.classList.add('hidden'), 400);
+      localStorage.setItem('wt_install_dismissed', '1');
+    });
+    setTimeout(() => banner.classList.remove('hidden'), 3000);
+  }
+
+  // Android install
+  btn.addEventListener('click', async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      if (outcome === 'accepted') localStorage.setItem('wt_install_dismissed', '1');
+    }
+    banner.classList.add('banner-out');
+    setTimeout(() => banner.classList.add('hidden'), 400);
+  });
+
+  // Dismiss
+  dismiss.addEventListener('click', () => {
+    banner.classList.add('banner-out');
+    setTimeout(() => banner.classList.add('hidden'), 400);
+    localStorage.setItem('wt_install_dismissed', '1');
+  });
+
+  // Hide if installed later
+  window.addEventListener('appinstalled', () => {
+    banner.classList.add('hidden');
+    localStorage.setItem('wt_install_dismissed', '1');
+  });
+})();
+</script>
 </body>
 </html>
