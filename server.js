@@ -107,6 +107,24 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/api/health', (_req, res) =>
   res.json({ status: 'ok', db: dbConnected, channels: channels.size, users: users.size }));
 
+// Return all LAN IPs so the frontend can show the shareable URL
+app.get('/api/network', (_req, res) => {
+  const nets   = os.networkInterfaces();
+  const lanIPs = [];
+  for (const ifaces of Object.values(nets))
+    for (const iface of ifaces)
+      if (iface.family === 'IPv4' && !iface.internal) lanIPs.push(iface.address);
+  const proto = useHttps ? 'https' : 'http';
+  res.json({
+    urls:   lanIPs.map(ip => `${proto}://${ip}:${PORT}`),
+    port:   PORT,
+    online: !!process.env.RENDER_EXTERNAL_URL || !!process.env.RAILWAY_PUBLIC_DOMAIN,
+    publicUrl: process.env.RENDER_EXTERNAL_URL || process.env.RAILWAY_PUBLIC_DOMAIN
+               ? `https://${process.env.RENDER_EXTERNAL_URL || process.env.RAILWAY_PUBLIC_DOMAIN}`
+               : null
+  });
+});
+
 app.get('/api/channels', (_req, res) => res.json(publicChannelList()));
 
 // Fetch persistent message history for a channel

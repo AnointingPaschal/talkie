@@ -63,6 +63,15 @@
         <div class="pill">🎙️ Mic required</div>
         <div class="pill">⚡ WebRTC P2P</div>
       </div>
+
+      <!-- Network URL box — shown when running on LAN -->
+      <div class="network-box hidden" id="network-box">
+        <div class="network-box-label">
+          <svg viewBox="0 0 16 16" fill="currentColor" width="12"><path d="M8 0a8 8 0 100 16A8 8 0 008 0zM1.5 8a6.5 6.5 0 1113 0 6.5 6.5 0 01-13 0zm5-3.5v3H3.5a4.5 4.5 0 003.5 4.32V13h1v-1.18A4.5 4.5 0 0011.5 7.5H9V4.5H8v-.01z"/></svg>
+          Share this link with others on your Wi-Fi
+        </div>
+        <div class="network-urls" id="network-urls"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -112,6 +121,15 @@
 
     <!-- ─── RADIO PANEL ─── -->
     <div class="radio-panel" id="panel-radio">
+
+      <!-- Network / connection info -->
+      <div class="section-card net-info-card hidden" id="net-info-card">
+        <div class="section-header">
+          <svg viewBox="0 0 20 20" fill="currentColor" width="13"><path fill-rule="evenodd" d="M17.778 8.222c-4.296-4.296-11.26-4.296-15.556 0A1 1 0 01.808 6.808c5.076-5.077 13.308-5.077 18.384 0a1 1 0 01-1.414 1.414zM14.95 11.05a7 7 0 00-9.9 0 1 1 0 01-1.414-1.414 9 9 0 0112.728 0 1 1 0 01-1.414 1.414zM12.12 13.88a3 3 0 00-4.242 0 1 1 0 01-1.415-1.415 5 5 0 017.072 0 1 1 0 01-1.415 1.415zM9 16a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
+          Connect from other devices
+        </div>
+        <div class="net-urls" id="net-urls-panel"></div>
+      </div>
 
       <!-- Status Card -->
       <div class="status-card">
@@ -303,6 +321,66 @@ window.addEventListener('resize', () => {
     document.getElementById('panel-chat').classList.remove('mobile-hidden');
   }
 });
+
+// ── Fetch & display network / LAN URLs ────────────────────────────────────────
+async function loadNetworkUrls() {
+  try {
+    const res  = await fetch('/api/network');
+    const data = await res.json();
+
+    // Determine which URLs to show
+    const urls = [];
+
+    // Always show current page URL
+    urls.push(window.location.origin);
+
+    // Add LAN IPs if different from current origin
+    if (data.urls) {
+      data.urls.forEach(u => { if (u !== window.location.origin) urls.push(u); });
+    }
+
+    if (urls.length === 0) return;
+
+    function buildRows(urls) {
+      return urls.map(url => `
+        <div class="net-url-row">
+          <span class="net-url-text">${url}</span>
+          <button class="net-url-copy" onclick="copyUrl(this,'${url}')">Copy</button>
+        </div>`).join('');
+    }
+
+    // Setup screen box — only show if there are LAN IPs (offline mode)
+    const lanUrls = data.urls || [];
+    if (lanUrls.length > 0) {
+      const box = document.getElementById('network-box');
+      const urlsEl = document.getElementById('network-urls');
+      if (box && urlsEl) {
+        urlsEl.innerHTML = buildRows(lanUrls);
+        box.classList.remove('hidden');
+      }
+    }
+
+    // Main app panel — show all URLs
+    const card = document.getElementById('net-info-card');
+    const panel = document.getElementById('net-urls-panel');
+    if (card && panel) {
+      panel.innerHTML = buildRows(urls);
+      card.classList.remove('hidden');
+    }
+  } catch (_) {}
+}
+
+window.copyUrl = function(btn, url) {
+  navigator.clipboard.writeText(url).then(() => {
+    btn.textContent = '✓ Copied';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  }).catch(() => {
+    prompt('Copy this URL:', url);
+  });
+};
+
+loadNetworkUrls();
 </script>
 <script>
   if ("serviceWorker" in navigator) {
