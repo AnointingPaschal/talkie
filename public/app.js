@@ -42,6 +42,35 @@ function showToast(msg, type = 'info', ms = 3000) {
   state.toastTimer = setTimeout(() => { el.className = 'fixed bottom-24 left-1/2 -translate-x-1/2 translate-y-20 opacity-0 pointer-events-none z-[9999] px-5 py-2.5 rounded-full text-sm font-medium shadow-xl whitespace-nowrap transition-all duration-300'; }, ms);
 }
 
+// ── Smart server detection ────────────────────────────────────────
+// Priority: 1) user saved URL  2) LAN server  3) current origin (Render)
+async function detectServer() {
+  // User manually set a server
+  const saved = localStorage.getItem('wt_server');
+  if (saved) return saved;
+
+  // Capacitor embedded server
+  if (window.Capacitor?.isNativePlatform()) return 'http://localhost:3000';
+  if (window.electronAPI) return 'https://localhost:3000';
+
+  // Try to find a LAN server by checking /api/network on current origin
+  // which returns LAN IPs — then probe each one
+  try {
+    const res  = await fetch('/api/network', { signal: AbortSignal.timeout(2000) });
+    const data = await res.json();
+    const lanUrls = data.urls || [];
+    for (const url of lanUrls) {
+      try {
+        const probe = await fetch(url + '/api/health', { signal: AbortSignal.timeout(1500) });
+        if (probe.ok) return url; // Found LAN server
+      } catch (_) {}
+    }
+  } catch (_) {}
+
+  // Fall back to current origin (Render / local node server)
+  return window.location.origin;
+}
+
 function getServerUrl() {
   if (window.Capacitor?.isNativePlatform()) return 'http://localhost:3000';
   if (window.electronAPI) return 'https://localhost:3000';
@@ -178,8 +207,8 @@ function setupAnalyser() {
 }
 
 // ── Socket ────────────────────────────────────────────────────────
-function initSocket() {
-  const url = getServerUrl();
+async function initSocket() {
+  const url = await detectServer();
   state.socket = io(url, {
     rejectUnauthorized: false,
     timeout: 8000,

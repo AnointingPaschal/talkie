@@ -41,6 +41,34 @@
 </head>
 <body class="bg-white dark:bg-[#0f0f14] text-gray-900 dark:text-gray-100 overflow-hidden h-screen font-sans select-none transition-colors duration-200">
 
+<!-- ══ ROTATE SCREEN (landscape block) ══ -->
+<div id="rotate-screen" class="hidden fixed inset-0 z-[99999999] bg-[#0f0f14] flex-col items-center justify-center gap-5 text-center px-8">
+  <div class="text-7xl" style="animation:rotatePulse 2s ease-in-out infinite">📱</div>
+  <p class="text-white font-bold text-lg">Please rotate your device</p>
+  <p class="text-gray-400 text-sm">S-talk works in portrait mode only</p>
+</div>
+
+<!-- ══ OFFLINE BANNER ══ -->
+<div id="offline-banner" class="hidden fixed top-14 left-0 right-0 z-50 mx-3">
+  <div class="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 shadow-lg">
+    <span class="text-amber-500 text-sm">⚡</span>
+    <p class="flex-1 text-xs font-medium text-amber-700 dark:text-amber-300">No internet — connect to a local Wi-Fi server to use voice</p>
+    <button onclick="document.getElementById('offline-banner').classList.add('hidden')" class="text-amber-400 hover:text-amber-600 transition">
+      <svg viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+    </button>
+  </div>
+</div>
+
+<style>
+@keyframes rotatePulse {
+  0%,100% { transform: rotate(-15deg) scale(1);   }
+  50%      { transform: rotate(15deg)  scale(1.1); }
+}
+@media screen and (orientation: landscape) and (max-height: 500px) {
+  #rotate-screen { display: flex !important; }
+}
+</style>
+
 <!-- Landscape blocker -->
 <div id="landscape-block" class="hidden fixed inset-0 z-[99999] bg-[#0f0f14] flex-col items-center justify-center gap-4 p-8 text-center">
   <div class="text-5xl">📱</div>
@@ -395,6 +423,37 @@
 </div></div>
 
 <script>
+// ── Orientation lock ─────────────────────────────────────────
+(function lockOrientation() {
+  // Try native API lock first (works when installed as PWA)
+  function tryLock() {
+    try {
+      const p = screen.orientation?.lock?.('portrait');
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    } catch (_) {}
+  }
+  tryLock();
+  // Also watch orientation change and show blocker
+  function checkOrientation() {
+    const landscape = window.innerWidth > window.innerHeight && window.innerHeight < 500;
+    document.getElementById('rotate-screen').classList.toggle('hidden', !landscape);
+  }
+  window.addEventListener('orientationchange', () => { setTimeout(checkOrientation, 100); tryLock(); });
+  window.addEventListener('resize', checkOrientation);
+  checkOrientation();
+})();
+
+// ── Offline detection ─────────────────────────────────────────
+(function watchOnline() {
+  function update() {
+    const offline = !navigator.onLine;
+    document.getElementById('offline-banner').classList.toggle('hidden', !offline);
+  }
+  window.addEventListener('online',  update);
+  window.addEventListener('offline', update);
+  update();
+})();
+
 // ── Theme ─────────────────────────────────────────────────────
 function applyTheme() {
   const t = localStorage.getItem('stalk-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');

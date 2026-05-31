@@ -1,7 +1,7 @@
 {
   "name": "S-talk",
   "short_name": "S-talk",
-  "description": "Real-time voice & chat over LAN or internet",
+  "description": "Voice radio over LAN or internet",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
