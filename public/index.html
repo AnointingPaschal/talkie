@@ -439,89 +439,159 @@ loadNetworkUrls();
 <script src="/socket.io/socket.io.js"></script>
 <script src="app.js"></script>
 
-<!-- ═══════════════════════════════════ INSTALL BANNER ══ -->
-<div class="install-banner hidden" id="install-banner">
-  <div class="install-banner-inner">
-    <img src="/logo.svg" class="install-logo" alt="S-talk logo">
-    <div class="install-text">
-      <div class="install-title">Install S-talk</div>
-      <div class="install-sub" id="install-sub">Add to your home screen for the best experience</div>
+<!-- ═══════════════════════ INSTALL MODAL — fully self-contained ══ -->
+<style>
+#pwa-modal {
+  display: none;
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 2147483647;
+  padding: 0 16px 24px;
+  pointer-events: none;
+}
+#pwa-modal.pwa-show {
+  display: block;
+  pointer-events: auto;
+  animation: pwaUp .4s cubic-bezier(.34,1.4,.64,1) both;
+}
+#pwa-modal.pwa-hide {
+  animation: pwaDown .3s ease forwards;
+}
+@keyframes pwaUp   { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes pwaDown { from { transform: translateY(0);    opacity: 1; } to { transform: translateY(100%); opacity: 0; } }
+
+#pwa-modal-inner {
+  max-width: 480px;
+  margin: 0 auto;
+  background: #13152e;
+  border: 1px solid rgba(129,140,248,.3);
+  border-radius: 20px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 -4px 40px rgba(99,102,241,.2), 0 12px 50px rgba(0,0,0,.7);
+}
+#pwa-modal img {
+  width: 46px; height: 46px;
+  border-radius: 11px;
+  border: 1px solid rgba(129,140,248,.2);
+  flex-shrink: 0;
+}
+#pwa-modal-text { flex: 1; min-width: 0; }
+#pwa-modal-title {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px; font-weight: 700;
+  color: #f1f5f9; margin-bottom: 3px;
+}
+#pwa-modal-sub {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px; color: #94a3b8; line-height: 1.4;
+}
+#pwa-modal-sub b { color: #818cf8; font-weight: 600; }
+#pwa-install-btn {
+  padding: 9px 16px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border: none; border-radius: 30px;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px; font-weight: 700;
+  color: #fff; cursor: pointer;
+  box-shadow: 0 2px 14px rgba(99,102,241,.4);
+  flex-shrink: 0; white-space: nowrap;
+  transition: transform .15s, box-shadow .15s;
+}
+#pwa-install-btn:hover  { transform: scale(1.05); box-shadow: 0 4px 20px rgba(99,102,241,.5); }
+#pwa-install-btn:active { transform: scale(.97); }
+#pwa-dismiss-btn {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.12);
+  color: #64748b; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: background .15s, color .15s;
+}
+#pwa-dismiss-btn:hover { background: rgba(255,255,255,.13); color: #f1f5f9; }
+</style>
+
+<div id="pwa-modal">
+  <div id="pwa-modal-inner">
+    <img src="/logo.svg" alt="S-talk">
+    <div id="pwa-modal-text">
+      <div id="pwa-modal-title">Install S-talk</div>
+      <div id="pwa-modal-sub">Add to home screen for the best experience</div>
     </div>
-    <button class="install-btn" id="install-btn">Install</button>
-    <button class="install-dismiss" id="install-dismiss" aria-label="Dismiss">
-      <svg viewBox="0 0 20 20" fill="currentColor" width="16"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+    <button id="pwa-install-btn">Install</button>
+    <button id="pwa-dismiss-btn">
+      <svg viewBox="0 0 20 20" fill="currentColor" width="14">
+        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+      </svg>
     </button>
   </div>
 </div>
 
 <script>
-(function() {
-  const banner   = document.getElementById('install-banner');
-  const btn      = document.getElementById('install-btn');
-  const dismiss  = document.getElementById('install-dismiss');
-  const sub      = document.getElementById('install-sub');
-
-  if (localStorage.getItem('wt_install_dismissed')) return;
-  if (window.matchMedia('(display-mode: standalone)').matches) return;
+(function () {
+  if (localStorage.getItem('pwa_dismissed')) return;
   if (navigator.standalone) return;
+  if (window.matchMedia('(display-mode: standalone)').matches) return;
 
-  const isIOS    = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-  let deferredPrompt = null;
+  var modal   = document.getElementById('pwa-modal');
+  var sub     = document.getElementById('pwa-modal-sub');
+  var instBtn = document.getElementById('pwa-install-btn');
+  var dimBtn  = document.getElementById('pwa-dismiss-btn');
+  var prompt  = null;
+  var shown   = false;
 
-  window.addEventListener('beforeinstallprompt', e => {
-    e.preventDefault();
-    deferredPrompt = e;
-    sub.textContent = 'Get the full app experience — works offline too';
-  });
+  var isIOS    = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  var isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
   if (isIOS && isSafari) {
-    sub.innerHTML = 'Tap <strong>Share</strong> then <strong>"Add to Home Screen"</strong>';
-    btn.textContent = 'Got it';
-    btn.addEventListener('click', hideBanner);
+    sub.innerHTML = 'Tap <b>Share ↑</b> then <b>"Add to Home Screen"</b>';
+    instBtn.textContent = 'Got it';
   }
 
-  // ── Only show AFTER user enters the main app ──────────────────────────────
-  function showBanner() {
-    if (localStorage.getItem('wt_install_dismissed')) return;
-    if (window.matchMedia('(display-mode: standalone)').matches) return;
-    if (navigator.standalone) return;
-    if (!deferredPrompt && !(isIOS && isSafari)) return; // no install available
-
-    // Move banner to end of body so it's always last in DOM
-    document.body.appendChild(banner);
-    banner.classList.remove('hidden');
-    banner.style.animation = 'bannerIn .4s cubic-bezier(.34,1.56,.64,1) both';
-  }
-
-  function hideBanner() {
-    banner.classList.add('banner-out');
-    setTimeout(() => banner.classList.add('hidden'), 400);
-    localStorage.setItem('wt_install_dismissed', '1');
-  }
-
-  // Watch for main app becoming visible (user clicked "Enter Radio Room")
-  const observer = new MutationObserver(() => {
-    const mainApp = document.getElementById('main-app');
-    if (mainApp && !mainApp.classList.contains('hidden')) {
-      observer.disconnect();
-      setTimeout(showBanner, 4000); // show 4s after entering app
-    }
-  });
-  observer.observe(document.body, { attributes: true, subtree: true, attributeFilter: ['class'] });
-
-  btn.addEventListener('click', async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      deferredPrompt = null;
-      if (outcome === 'accepted') localStorage.setItem('wt_install_dismissed', '1');
-    }
-    hideBanner();
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    prompt = e;
+    sub.textContent = 'Get the full app — works offline too';
+    maybeShow();
   });
 
-  dismiss.addEventListener('click', hideBanner);
-  window.addEventListener('appinstalled', hideBanner);
+  function maybeShow() {
+    if (shown) return;
+    if (!prompt && !(isIOS && isSafari)) return;
+    shown = true;
+    modal.className = 'pwa-show';
+  }
+
+  function hide() {
+    modal.className = 'pwa-hide';
+    setTimeout(function () { modal.style.display = 'none'; }, 350);
+    localStorage.setItem('pwa_dismissed', '1');
+  }
+
+  // Show 5 seconds after the main app panel becomes visible
+  var obs = new MutationObserver(function () {
+    var m = document.getElementById('main-app');
+    if (m && !m.classList.contains('hidden')) {
+      obs.disconnect();
+      setTimeout(maybeShow, 5000);
+    }
+  });
+  obs.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+
+  instBtn.addEventListener('click', async function () {
+    if (prompt) {
+      prompt.prompt();
+      var r = await prompt.userChoice;
+      prompt = null;
+      if (r.outcome === 'accepted') { localStorage.setItem('pwa_dismissed', '1'); }
+    }
+    hide();
+  });
+
+  dimBtn.addEventListener('click', hide);
+  window.addEventListener('appinstalled', hide);
 })();
 </script>
 </body>
