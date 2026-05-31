@@ -26,7 +26,18 @@ const state = {
   missedCandidates: new Map(),
 };
 
-const ICE_CFG = { iceServers: [] };
+const ICE_CFG = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302'  },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+    { urls: 'stun:stun.relay.metered.ca:80' },
+    { urls: 'stun:stun.stunprotocol.org:3478' },
+  ],
+  iceCandidatePoolSize: 10,
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function $(id) { return document.getElementById(id); }
@@ -279,7 +290,19 @@ function createPeer(peerId, isInitiator) {
   };
 
   pc.onconnectionstatechange = () => {
-    if (pc.connectionState === 'failed') removePeer(peerId);
+    const s = pc.connectionState;
+    console.log(`[WebRTC] peer ${peerId.slice(0,6)}: ${s}`);
+    if (s === 'failed') {
+      console.warn('Connection failed — retrying with restartIce');
+      pc.restartIce();
+      setTimeout(() => {
+        if (pc.connectionState === 'failed') removePeer(peerId);
+      }, 8000);
+    }
+  };
+
+  pc.oniceconnectionstatechange = () => {
+    console.log(`[ICE] peer ${peerId.slice(0,6)}: ${pc.iceConnectionState}`);
   };
 
   if (isInitiator) {
