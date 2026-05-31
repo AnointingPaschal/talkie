@@ -1,6 +1,6 @@
 {
-  "name": "WalkieTalkie",
-  "short_name": "Talkie",
+  "name": "S-talk",
+  "short_name": "S-talk",
   "description": "Real-time voice & chat over LAN or internet",
   "start_url": "/",
   "display": "standalone",

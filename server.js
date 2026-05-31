@@ -11,7 +11,7 @@ const selfsigned = require('selfsigned');
 const mongoose   = require('mongoose');
 
 // ── TLS (self-signed for LAN / HTTPS) ────────────────────────────────────────
-const pems = selfsigned.generate([{ name: 'commonName', value: 'walkie-talkie' }], {
+const pems = selfsigned.generate([{ name: 'commonName', value: 's-talk' }], {
   days: 365, algorithm: 'sha256', keySize: 2048,
 });
 
@@ -271,7 +271,7 @@ server.listen(PORT, '0.0.0.0', () => {
   const proto = useHttps ? 'https' : 'http';
   const bar = '─'.repeat(52);
   console.log(`\n┌${bar}┐`);
-  console.log(`│   🎙️  WalkieTalkie  —  Server Ready                │`);
+  console.log(`│   🎙️  S-talk  —  Server Ready                │`);
   console.log(`├${bar}┤`);
   console.log(`│  ► Local  :  ${proto}://localhost:${PORT}                    │`);
   lanIPs.forEach(ip => console.log(`│  ► LAN    :  ${proto}://${ip}:${PORT}                    │`));

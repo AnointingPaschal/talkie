@@ -48,5 +48,5 @@
   <path d="M114 128 Q54 173 54 220 Q54 267 114 312" fill="none" stroke="#818cf8" stroke-width="8" stroke-linecap="round" opacity="0.35"/>
 
   <!-- App name -->
-  <text x="256" y="462" text-anchor="middle" font-family="'Inter', 'Helvetica Neue', sans-serif" font-size="42" font-weight="700" fill="url(#grad1)" letter-spacing="2">TALKIE</text>
+  <text x="256" y="462" text-anchor="middle" font-family="'Inter', 'Helvetica Neue', sans-serif" font-size="42" font-weight="700" fill="url(#grad1)" letter-spacing="2">S-TALK</text>
 </svg>

@@ -1,6 +1,6 @@
 {
   "appId": "com.walkietalkie.app",
-  "appName": "WalkieTalkie",
+  "appName": "S-talk",
   "webDir": "public",
   "server": {
     "url": "https://talkie-pnv2.onrender.com",
