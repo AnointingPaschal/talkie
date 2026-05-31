@@ -4,47 +4,46 @@
   "description": "Real-time voice & chat over LAN or internet",
   "main": "electron/main.js",
   "scripts": {
-    "start":          "node server.js",
-    "dev":            "nodemon server.js",
-    "electron":       "electron .",
-    "electron:dev":   "concurrently \"npm start\" \"wait-on https-get://localhost:3000/api/health --timeout 30000 -- electron .\"",
-    "build:win":      "electron-builder --win --x64",
-    "build:mac":      "electron-builder --mac",
-    "build:linux":    "electron-builder --linux",
-    "cap:init":       "cap init S-talk com.stalk.app --web-dir public",
-    "cap:android":    "npm run nodejs:install && cap add android",
-    "cap:ios":        "npm run nodejs:install && cap add ios",
-    "cap:sync":       "npm run nodejs:install && cap sync",
-    "cap:run:android":"cap run android",
-    "cap:run:ios":    "cap run ios",
-    "cap:open:android":"cap open android",
-    "cap:open:ios":   "cap open ios",
-    "cap:build:android":"cap sync android && cd android && ./gradlew assembleRelease",
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "electron": "electron .",
+    "electron:dev": "concurrently \"npm start\" \"wait-on https-get://localhost:3000/api/health --timeout 30000 -- electron .\"",
+    "build:win": "electron-builder --win --x64",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "cap:init": "cap init S-talk com.stalk.app --web-dir public",
+    "cap:android": "npm run nodejs:install && cap add android",
+    "cap:ios": "npm run nodejs:install && cap add ios",
+    "cap:sync": "npm run nodejs:install && cap sync",
+    "cap:run:android": "cap run android",
+    "cap:run:ios": "cap run ios",
+    "cap:open:android": "cap open android",
+    "cap:open:ios": "cap open ios",
+    "cap:build:android": "cap sync android && cd android && ./gradlew assembleRelease",
     "nodejs:install": "cd nodejs && npm install"
   },
   "dependencies": {
-    "express":    "^4.19.2",
-    "socket.io":  "^4.7.5",
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5",
     "selfsigned": "^2.4.1",
-    "mongoose":   "^8.3.0",
-    "dotenv":     "^16.4.5"
+    "mongoose": "^8.3.0",
+    "dotenv": "^16.4.5"
   },
   "devDependencies": {
-    "nodemon":              "^3.1.4",
-    "electron":             "^30.0.0",
-    "electron-builder":     "^24.13.3",
-    "concurrently":         "^8.2.2",
-    "wait-on":              "^7.2.0",
-    "@capacitor/cli":       "^6.0.0",
-    "@capacitor/core":      "^6.0.0",
-    "@capacitor/android":   "^6.0.0",
-    "@capacitor/ios":       "^6.0.0",
-    "capacitor-nodejs":     "^3.0.0"
+    "nodemon": "^3.1.4",
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3",
+    "concurrently": "^8.2.2",
+    "wait-on": "^7.2.0",
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/ios": "^6.0.0"
   },
   "build": {
-    "appId":       "com.walkie-talkie.app",
+    "appId": "com.walkie-talkie.app",
     "productName": "WalkieTalkie",
-    "copyright":   "MIT",
+    "copyright": "MIT",
     "files": [
       "electron/**/*",
       "public/**/*",
@@ -52,12 +51,49 @@
       "package.json",
       "node_modules/**/*"
     ],
-    "extraMetadata": { "main": "electron/main.js" },
-    "win":   { "target": [{ "target": "nsis", "arch": ["x64"] }] },
-    "mac":   { "target": [{ "target": "dmg",  "arch": ["x64","arm64"] }], "category": "public.app-category.utilities" },
-    "linux": { "target": [{ "target": "AppImage", "arch": ["x64"] }], "category": "Network" },
-    "nsis":  { "oneClick": false, "allowToChangeInstallationDirectory": true }
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.utilities"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Network"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
-  "engines": { "node": ">=18.0.0" },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "license": "MIT"
 }

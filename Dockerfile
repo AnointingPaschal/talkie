@@ -2,13 +2,15 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm install --omit=dev
+# Only copy server-relevant files — no Electron/Capacitor deps
+COPY package.json ./
+
+# Install only the 5 server dependencies explicitly
+RUN npm install express socket.io selfsigned mongoose dotenv
 
 COPY server.js .
 COPY public/ ./public/
 
-# Render handles SSL — run plain HTTP internally
 ENV NO_HTTPS=true
 ENV NODE_ENV=production
 
