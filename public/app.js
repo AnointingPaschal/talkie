@@ -433,7 +433,8 @@ function wireChannelControls() {
 function doHost() {
   const chId = $('ch-input').value.trim();
   if (!chId) { showToast('⚠️ Enter a channel name or number', 'warning'); return; }
-  if (!state.socket?.connected) { showToast('⚠️ Not connected', 'warning'); return; }
+  if (!state.socket) { showToast('⚠️ Not connected to server yet', 'warning'); return; }
+  if (!state.socket.connected) { showToast('⚠️ Server disconnected — please wait', 'warning'); return; }
   const isPrivate = $('private-chk').checked;
   const pw        = isPrivate ? $('pw-input').value : '';
   _joinChannel(chId, pw);
@@ -441,6 +442,7 @@ function doHost() {
 
 // Internal join used by both HOST and list JOIN buttons
 function _joinChannel(chId, pw = '') {
+  if (!state.socket?.connected) { showToast('⚠️ Not connected to server', 'warning'); return; }
   if (state.isTransmitting) stopTX();
   for (const id of [...state.peers.keys()]) removePeer(id);
   state.peerUsernames.clear();
@@ -672,10 +674,11 @@ function renderChannelList(channels) {
 }
 
 window.quickJoin = function(channelId) {
-  const privateChk = $('private-chk');
-  const isPrivate  = channels?.get?.(channelId)?.password;
-  if (isPrivate) {
-    const pw = prompt(`Channel ${channelId} is private. Enter password:`);
+  const ch = state.channelList.find(c => String(c.id) === String(channelId));
+  // For now all active channels shown are public — private ones aren't listed
+  // If somehow it's private, prompt for password
+  if (ch && ch.isPrivate) {
+    const pw = window.prompt('Channel ' + channelId + ' is private. Enter password:');
     if (pw === null) return;
     _joinChannel(channelId, pw);
   } else {
