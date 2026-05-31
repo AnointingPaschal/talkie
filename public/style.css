@@ -948,17 +948,19 @@ input, textarea { user-select: text; }
 .btn-sp-reset:hover { background: rgba(255,255,255,.09); color: var(--t1); }
 
 /* ═══════════════════════════════════════════ INSTALL BANNER ══ */
+/* ═══ Install banner ════════════════════════════════════════ */
 .install-banner {
   position: fixed;
   bottom: 0; left: 0; right: 0;
-  z-index: 99999;
-  padding: 0 12px 12px;
-  animation: bannerIn .45s cubic-bezier(.34,1.56,.64,1) both;
+  z-index: 2147483647;
+  padding: 0 12px max(12px, env(safe-area-inset-bottom));
+  will-change: transform, opacity;
+  isolation: isolate;
 }
 .install-banner.banner-out { animation: bannerOut .35s ease forwards; }
 
-@keyframes bannerIn  { from { transform: translateY(120%); opacity: 0; } to { transform: none; opacity: 1; } }
-@keyframes bannerOut { from { transform: none; opacity: 1; } to { transform: translateY(120%); opacity: 0; } }
+@keyframes bannerIn  { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes bannerOut { from { transform: translateY(0); opacity: 1; } to { transform: translateY(100%); opacity: 0; } }
 
 .install-banner-inner {
   display: flex;

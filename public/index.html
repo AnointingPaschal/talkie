@@ -463,35 +463,53 @@ loadNetworkUrls();
 
   if (localStorage.getItem('wt_install_dismissed')) return;
   if (window.matchMedia('(display-mode: standalone)').matches) return;
-  if (navigator.standalone) return; // already installed on iOS
+  if (navigator.standalone) return;
 
-  const isIOS     = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  const isSafari  = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-  const isAndroid = /android/i.test(navigator.userAgent);
-
+  const isIOS    = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
   let deferredPrompt = null;
 
-  // Android / Chrome — native install prompt
   window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
     deferredPrompt = e;
     sub.textContent = 'Get the full app experience — works offline too';
-    setTimeout(() => banner.classList.remove('hidden'), 3000);
   });
 
-  // iOS Safari — manual instructions
   if (isIOS && isSafari) {
     sub.innerHTML = 'Tap <strong>Share</strong> then <strong>"Add to Home Screen"</strong>';
     btn.textContent = 'Got it';
-    btn.addEventListener('click', () => {
-      banner.classList.add('banner-out');
-      setTimeout(() => banner.classList.add('hidden'), 400);
-      localStorage.setItem('wt_install_dismissed', '1');
-    });
-    setTimeout(() => banner.classList.remove('hidden'), 3000);
+    btn.addEventListener('click', hideBanner);
   }
 
-  // Android install
+  // ── Only show AFTER user enters the main app ──────────────────────────────
+  function showBanner() {
+    if (localStorage.getItem('wt_install_dismissed')) return;
+    if (window.matchMedia('(display-mode: standalone)').matches) return;
+    if (navigator.standalone) return;
+    if (!deferredPrompt && !(isIOS && isSafari)) return; // no install available
+
+    // Move banner to end of body so it's always last in DOM
+    document.body.appendChild(banner);
+    banner.classList.remove('hidden');
+    banner.style.animation = 'bannerIn .4s cubic-bezier(.34,1.56,.64,1) both';
+  }
+
+  function hideBanner() {
+    banner.classList.add('banner-out');
+    setTimeout(() => banner.classList.add('hidden'), 400);
+    localStorage.setItem('wt_install_dismissed', '1');
+  }
+
+  // Watch for main app becoming visible (user clicked "Enter Radio Room")
+  const observer = new MutationObserver(() => {
+    const mainApp = document.getElementById('main-app');
+    if (mainApp && !mainApp.classList.contains('hidden')) {
+      observer.disconnect();
+      setTimeout(showBanner, 4000); // show 4s after entering app
+    }
+  });
+  observer.observe(document.body, { attributes: true, subtree: true, attributeFilter: ['class'] });
+
   btn.addEventListener('click', async () => {
     if (deferredPrompt) {
       deferredPrompt.prompt();
@@ -499,22 +517,11 @@ loadNetworkUrls();
       deferredPrompt = null;
       if (outcome === 'accepted') localStorage.setItem('wt_install_dismissed', '1');
     }
-    banner.classList.add('banner-out');
-    setTimeout(() => banner.classList.add('hidden'), 400);
+    hideBanner();
   });
 
-  // Dismiss
-  dismiss.addEventListener('click', () => {
-    banner.classList.add('banner-out');
-    setTimeout(() => banner.classList.add('hidden'), 400);
-    localStorage.setItem('wt_install_dismissed', '1');
-  });
-
-  // Hide if installed later
-  window.addEventListener('appinstalled', () => {
-    banner.classList.add('hidden');
-    localStorage.setItem('wt_install_dismissed', '1');
-  });
+  dismiss.addEventListener('click', hideBanner);
+  window.addEventListener('appinstalled', hideBanner);
 })();
 </script>
 </body>
