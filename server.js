@@ -133,6 +133,15 @@ function channelRoster(ch) {
 
 // ── REST ──────────────────────────────────────────────────────────
 app.use(express.json());
+
+// Never cache HTML — always serve fresh
+app.get('/', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/health', (_, res) =>
