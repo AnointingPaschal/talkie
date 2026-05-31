@@ -213,48 +213,49 @@
         </div>
       </div>
 
-      <!-- Channel Control — HOST button -->
+      <!-- Frequency Control -->
       <div class="section-card">
         <div class="section-header">
-          <svg viewBox="0 0 20 20" fill="currentColor" width="13"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zm5 2a2 2 0 11-4 0 2 2 0 014 0zm-4 7a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zm10 10v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"/></svg>
-          Host a Channel
+          <svg viewBox="0 0 20 20" fill="currentColor" width="13"><path d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd"/></svg>
+          Frequency / Channel
         </div>
-        <div class="ch-input-row">
-          <input type="text" id="ch-input" placeholder="Channel name or number"
-                 maxlength="20" autocomplete="off" spellcheck="false">
-          <button id="join-btn" class="btn-host">HOST</button>
+        <div class="freq-input-wrap">
+          <span class="freq-mhz-label">MHz</span>
+          <input type="text" id="ch-input" placeholder="e.g. 146.520 or room1"
+                 maxlength="20" autocomplete="off" spellcheck="false" inputmode="decimal">
+        </div>
+        <div class="freq-btn-row">
+          <button id="join-btn" class="freq-btn freq-btn-host">
+            📡 HOST
+          </button>
+          <button id="freq-join-btn" class="freq-btn freq-btn-join">
+            📻 JOIN
+          </button>
         </div>
         <label class="private-label">
           <input type="checkbox" id="private-chk">
           <div class="check-box"></div>
-          <span>Private channel</span>
+          <span>Private frequency</span>
         </label>
         <div class="pw-row hidden" id="pw-row">
           <input type="password" id="pw-input" placeholder="Set password">
         </div>
         <div class="ch-action-row">
-          <button id="leave-btn" class="action-btn btn-danger" disabled>
-            <svg viewBox="0 0 20 20" fill="currentColor" width="12"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
-            Leave
-          </button>
-          <button id="scan-btn" class="action-btn btn-scan">
-            <svg viewBox="0 0 20 20" fill="currentColor" width="12"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg>
-            Scan
-          </button>
-          <button id="refresh-btn" class="action-btn btn-ghost">
-            <svg viewBox="0 0 20 20" fill="currentColor" width="14"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg>
-          </button>
+          <button id="leave-btn" class="action-btn btn-danger" disabled>✕ Leave</button>
+          <button id="scan-btn" class="action-btn btn-scan">⟳ Scan</button>
+          <button id="refresh-btn" class="action-btn btn-ghost">↻</button>
         </div>
       </div>
 
-      <!-- Active Channels — JOIN button on each -->
+      <!-- Active Frequencies — click card to tune in -->
       <div class="section-card">
         <div class="section-header">
           <svg viewBox="0 0 20 20" fill="currentColor" width="13"><path d="M13.92 3.845a19.361 19.361 0 01-6.3 1.98C6.765 5.945 5.8 6 4.8 6H4a2 2 0 00-2 2v4a2 2 0 002 2h.8c1 0 1.965.055 2.82.175a19.36 19.36 0 016.3 1.98L16 17V3l-2.08.845z"/></svg>
-          Active Channels
+          Active Frequencies
+          <span class="ch-list-hint">tap to tune in</span>
         </div>
         <div class="ch-list" id="ch-list">
-          <div class="list-empty">No active channels yet</div>
+          <div class="list-empty">No active frequencies yet</div>
         </div>
       </div>
 

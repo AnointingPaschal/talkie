@@ -1108,3 +1108,76 @@ input, textarea { user-select: text; }
   animation: spin .7s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ═══ Frequency input & buttons ══════════════════════════════ */
+.freq-input-wrap {
+  position: relative; display: flex; align-items: center;
+}
+.freq-mhz-label {
+  position: absolute; right: 12px;
+  font-size: 10px; font-weight: 700; letter-spacing: .1em;
+  color: var(--indigo); opacity: .7; pointer-events: none;
+}
+.freq-input-wrap input {
+  width: 100%; padding: 11px 44px 11px 14px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--t1); font-size: 15px;
+  font-family: var(--mono); letter-spacing: .05em;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s, background .2s;
+}
+.freq-input-wrap input:focus {
+  border-color: var(--indigo-d);
+  background: rgba(99,102,241,.06);
+  box-shadow: 0 0 0 3px rgba(99,102,241,.18);
+}
+.freq-input-wrap input::placeholder { color: var(--t3); font-family: var(--font); font-size: 13px; }
+
+.freq-btn-row { display: flex; gap: 8px; }
+.freq-btn {
+  flex: 1; padding: 10px 14px;
+  border: none; border-radius: var(--r-sm);
+  font-size: 13px; font-weight: 700; letter-spacing: .05em;
+  cursor: pointer; font-family: var(--font);
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  transition: transform .15s var(--spring), box-shadow .15s, opacity .15s;
+}
+.freq-btn:active { transform: scale(.97); }
+
+.freq-btn-host {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  box-shadow: 0 2px 14px rgba(16,185,129,.35);
+}
+.freq-btn-host:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(16,185,129,.5); }
+
+.freq-btn-join {
+  background: linear-gradient(135deg, var(--indigo-d), var(--violet));
+  color: #fff;
+  box-shadow: 0 2px 14px var(--glow-indigo);
+}
+.freq-btn-join:hover { transform: translateY(-1px); box-shadow: 0 4px 20px var(--glow-indigo); }
+
+/* ═══ Active frequencies list — clickable cards ══════════════ */
+.ch-list-hint {
+  font-size: 9.5px; font-weight: 400; color: var(--t3);
+  margin-left: 4px; letter-spacing: .04em; text-transform: none;
+}
+.ch-item {
+  cursor: pointer;
+  transition: background .15s, border-color .15s, transform .12s;
+}
+.ch-item:hover { transform: translateX(3px); border-color: rgba(129,140,248,.25); }
+.ch-item:active { transform: scale(.98); }
+.ch-item.current { cursor: default; }
+.ch-item.current:hover { transform: none; }
+
+.ch-on-air {
+  font-size: 8.5px; font-weight: 800; letter-spacing: .1em;
+  background: rgba(52,211,153,.15);
+  border: 1px solid rgba(52,211,153,.35);
+  color: var(--emerald); border-radius: 20px;
+  padding: 1px 7px;
+}

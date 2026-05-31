@@ -443,23 +443,36 @@ function toggleOutputMute() {
 // ── Channel Controls ──────────────────────────────────────────────────────────
 function wireChannelControls() {
   $('join-btn').addEventListener('click',  doHost);
+  $('freq-join-btn').addEventListener('click', doJoinFreq);
   $('leave-btn').addEventListener('click', doLeave);
   $('scan-btn').addEventListener('click',  toggleScan);
   $('refresh-btn').addEventListener('click', () => state.socket?.emit('get-channels'));
-  $('ch-input').addEventListener('keydown', e => { if (e.key === 'Enter') doHost(); });
+  $('ch-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doJoinFreq(); // Enter = join by default
+  });
   $('private-chk').addEventListener('change', () => {
     $('pw-row').classList.toggle('hidden', !$('private-chk').checked);
   });
 }
 
-// HOST = create/open a channel and be the first user
+// HOST = create a new frequency/channel
 function doHost() {
   const chId = $('ch-input').value.trim();
-  if (!chId) { showToast('⚠️ Enter a channel name or number', 'warning'); return; }
+  if (!chId) { showToast('⚠️ Enter a frequency or channel name', 'warning'); return; }
   if (!state.socket) { showToast('⚠️ Not connected to server yet', 'warning'); return; }
   if (!state.socket.connected) { showToast('⚠️ Server disconnected — please wait', 'warning'); return; }
   const isPrivate = $('private-chk').checked;
   const pw        = isPrivate ? $('pw-input').value : '';
+  _joinChannel(chId, pw);
+}
+
+// JOIN = tune into an existing frequency directly
+function doJoinFreq() {
+  const chId = $('ch-input').value.trim();
+  if (!chId) { showToast('⚠️ Enter a frequency to join', 'warning'); return; }
+  if (!state.socket) { showToast('⚠️ Not connected to server yet', 'warning'); return; }
+  if (!state.socket.connected) { showToast('⚠️ Server disconnected — please wait', 'warning'); return; }
+  const pw = $('private-chk').checked ? $('pw-input').value : '';
   _joinChannel(chId, pw);
 }
 
@@ -672,37 +685,32 @@ function renderChannelList(channels) {
   list.innerHTML = '';
 
   if (!channels || channels.length === 0) {
-    list.innerHTML = '<div class="list-empty">No active channels yet</div>';
+    list.innerHTML = '<div class="list-empty">No active frequencies yet</div>';
     return;
   }
 
   channels.forEach(ch => {
     const isCurrent = state.channel === ch.id;
+    const names     = (ch.users || []).slice(0, 3).map(escHtml).join(', ') || 'empty';
+
     const item      = document.createElement('div');
     item.className  = 'ch-item' + (isCurrent ? ' current' : '') + (ch.hasActivity ? ' has-activity' : '');
-
-    const names = (ch.users || []).slice(0, 3).map(escHtml).join(', ') || 'Empty';
+    item.title      = isCurrent ? 'Currently on this frequency' : 'Tap to tune into ' + ch.id;
 
     item.innerHTML = `
       <div class="ch-item-info">
         <div class="ch-item-top">
-          <span class="ch-number">CH ${escHtml(String(ch.id))}</span>
+          <span class="ch-number">${escHtml(String(ch.id))} <small style="font-size:9px;color:var(--t3);font-family:var(--font);font-weight:400">MHz</small></span>
           ${ch.hasActivity ? '<span class="ch-dot"></span>' : ''}
+          ${isCurrent ? '<span class="ch-on-air">ON AIR</span>' : ''}
         </div>
-        <span class="ch-usernames">${names}</span>
-      </div>
-      <div class="ch-item-right">
-        <span class="ch-usercount">${ch.userCount} 👤</span>
-        <button class="ch-join-btn ${isCurrent ? 'ch-join-current' : ''}" ${isCurrent ? 'disabled' : ''}>
-          ${isCurrent ? '✓ IN' : 'JOIN'}
-        </button>
+        <span class="ch-usernames">${ch.userCount} user${ch.userCount !== 1 ? 's' : ''} · ${names}</span>
       </div>`;
 
-    // Attach click directly on the button element — no onclick string
+    // Clicking the card tunes in — no separate button
     if (!isCurrent) {
-      const btn = item.querySelector('.ch-join-btn');
-      btn.addEventListener('click', function (e) {
-        e.stopPropagation();
+      item.addEventListener('click', function () {
+        $('ch-input').value = ch.id;
         _joinChannel(ch.id, '');
       });
     }
@@ -711,7 +719,6 @@ function renderChannelList(channels) {
   });
 }
 
-// Keep quickJoin for any legacy calls
 window.quickJoin = function(channelId) {
   _joinChannel(String(channelId), '');
 };
