@@ -605,8 +605,9 @@ input, textarea { user-select: text; }
 /* ── Channel List ───────────────────────────────────────────── */
 .ch-list {
   display: flex; flex-direction: column; gap: 5px;
-  max-height: 200px; overflow-y: auto;
+  max-height: 240px; overflow-y: auto; overflow-x: hidden;
   scrollbar-width: thin;
+  position: relative;
 }
 .ch-item {
   display: flex; align-items: center; gap: 8px;
@@ -874,7 +875,8 @@ input, textarea { user-select: text; }
 .ch-usercount svg { opacity: .6; }
 
 .ch-join-btn {
-  padding: 5px 13px; border-radius: 20px;
+  padding: 6px 14px;
+  border-radius: 20px;
   font-size: 11px; font-weight: 700; letter-spacing: .06em;
   background: linear-gradient(135deg, rgba(99,102,241,.25), rgba(139,92,246,.25));
   border: 1px solid rgba(129,140,248,.35);
@@ -882,6 +884,11 @@ input, textarea { user-select: text; }
   font-family: var(--font);
   transition: background .15s, transform .1s, box-shadow .15s;
   white-space: nowrap;
+  position: relative; z-index: 2;
+  -webkit-tap-highlight-color: rgba(99,102,241,.2);
+  touch-action: manipulation;
+  user-select: none;
+  pointer-events: auto;
 }
 .ch-join-btn:hover:not(:disabled) {
   background: linear-gradient(135deg, rgba(99,102,241,.4), rgba(139,92,246,.4));

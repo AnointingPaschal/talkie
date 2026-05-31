@@ -646,44 +646,51 @@ function renderSpeaking(socketId, isSpeaking) {
 
 function renderChannelList(channels) {
   const list = $('ch-list');
-  if (channels.length === 0) {
+  list.innerHTML = '';
+
+  if (!channels || channels.length === 0) {
     list.innerHTML = '<div class="list-empty">No active channels yet</div>';
     return;
   }
-  list.innerHTML = channels.map(ch => {
+
+  channels.forEach(ch => {
     const isCurrent = state.channel === ch.id;
-    return `
-    <div class="ch-item ${isCurrent ? 'current' : ''} ${ch.hasActivity ? 'has-activity' : ''}">
+    const item      = document.createElement('div');
+    item.className  = 'ch-item' + (isCurrent ? ' current' : '') + (ch.hasActivity ? ' has-activity' : '');
+
+    const names = (ch.users || []).slice(0, 3).map(escHtml).join(', ') || 'Empty';
+
+    item.innerHTML = `
       <div class="ch-item-info">
         <div class="ch-item-top">
           <span class="ch-number">CH ${escHtml(String(ch.id))}</span>
-          ${ch.hasActivity ? '<span class="ch-dot" title="Active"></span>' : ''}
+          ${ch.hasActivity ? '<span class="ch-dot"></span>' : ''}
         </div>
-        <span class="ch-usernames">${ch.users.slice(0, 3).map(escHtml).join(', ') || 'Empty'}</span>
+        <span class="ch-usernames">${names}</span>
       </div>
       <div class="ch-item-right">
-        <span class="ch-usercount">${ch.userCount} <svg viewBox="0 0 12 12" fill="currentColor" width="10"><path d="M4 5a2 2 0 100-4 2 2 0 000 4zm-4 6a6 6 0 018 0H0zm10-4a2 2 0 100-4 2 2 0 000 4zm0 4a4 4 0 00-3.5 2H14a4 4 0 00-3.5-2H10z"/></svg></span>
-        <button class="ch-join-btn ${isCurrent ? 'ch-join-current' : ''}"
-                onclick="quickJoin(${JSON.stringify(ch.id)})"
-                ${isCurrent ? 'disabled' : ''}>
+        <span class="ch-usercount">${ch.userCount} 👤</span>
+        <button class="ch-join-btn ${isCurrent ? 'ch-join-current' : ''}" ${isCurrent ? 'disabled' : ''}>
           ${isCurrent ? '✓ IN' : 'JOIN'}
         </button>
-      </div>
-    </div>`;
-  }).join('');
+      </div>`;
+
+    // Attach click directly on the button element — no onclick string
+    if (!isCurrent) {
+      const btn = item.querySelector('.ch-join-btn');
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        _joinChannel(ch.id, '');
+      });
+    }
+
+    list.appendChild(item);
+  });
 }
 
+// Keep quickJoin for any legacy calls
 window.quickJoin = function(channelId) {
-  const ch = state.channelList.find(c => String(c.id) === String(channelId));
-  // For now all active channels shown are public — private ones aren't listed
-  // If somehow it's private, prompt for password
-  if (ch && ch.isPrivate) {
-    const pw = window.prompt('Channel ' + channelId + ' is private. Enter password:');
-    if (pw === null) return;
-    _joinChannel(channelId, pw);
-  } else {
-    _joinChannel(channelId, '');
-  }
+  _joinChannel(String(channelId), '');
 };
 
 window.setMode = setMode;
