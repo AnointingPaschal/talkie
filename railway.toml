@@ -1,0 +1,11 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "node server.js"
+restartPolicyType = "on-failure"
+restartPolicyMaxRetries = 5
+
+[env]
+PORT = { default = "3000" }
+NO_HTTPS = { default = "true" }

@@ -1,0 +1,14 @@
+{
+  "name": "WalkieTalkie",
+  "short_name": "WalkieTalkie",
+  "description": "Real-time voice & chat over LAN or internet",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#060810",
+  "theme_color": "#6366f1",
+  "categories": ["communication", "utilities"],
+  "icons": [
+    { "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23060810'/><text y='.9em' font-size='80'>📻</text></svg>", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
