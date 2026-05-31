@@ -10,86 +10,94 @@ const os         = require('os');
 const selfsigned = require('selfsigned');
 const mongoose   = require('mongoose');
 
-// ── TLS (self-signed for LAN / HTTPS) ────────────────────────────────────────
 const pems = selfsigned.generate([{ name: 'commonName', value: 's-talk' }], {
   days: 365, algorithm: 'sha256', keySize: 2048,
 });
 
-const app        = express();
-const isElectron = !!process.env.ELECTRON;
-const useHttps   = !process.env.NO_HTTPS;
-
-// Railway / Render set PORT env. For LAN use https (mic requires it on mobile).
-const server = useHttps
+const app       = express();
+const useHttps  = !process.env.NO_HTTPS;
+const server    = useHttps
   ? https.createServer({ key: pems.private, cert: pems.cert }, app)
   : http.createServer(app);
 
 const io = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] },
-  pingTimeout:  60000,
-  pingInterval: 25000,
+  pingTimeout: 60000, pingInterval: 25000,
   maxHttpBufferSize: 1e6,
-  // Polling fallback for environments that don't support websockets (Vercel edge)
   transports: ['websocket', 'polling'],
 });
 
 const PORT = process.env.PORT || 3000;
 
-// ── MongoDB ───────────────────────────────────────────────────────────────────
+// ── MongoDB ───────────────────────────────────────────────────────
 let dbConnected = false;
-
-const MessageSchema = new mongoose.Schema({
-  id:        { type: String, required: true },
-  channelId: { type: String, required: true, index: true },
-  socketId:  String,
-  username:  String,
-  text:      String,
+const MsgSchema = new mongoose.Schema({
+  id: String, channelId: { type: String, index: true },
+  socketId: String, username: String, text: String,
   timestamp: { type: Date, default: Date.now },
 });
-const ChannelMeta = mongoose.model('ChannelMeta', new mongoose.Schema({
-  channelId:   { type: String, unique: true },
-  isPrivate:   Boolean,
-  createdAt:   { type: Date, default: Date.now },
-  lastActive:  Date,
-  createdBy:   String,
-}));
-const Message = mongoose.model('Message', MessageSchema);
+const Message = mongoose.model('Message', MsgSchema);
 
 if (process.env.MONGODB_URI) {
   mongoose.connect(process.env.MONGODB_URI)
     .then(() => { dbConnected = true; console.log('✅ MongoDB connected'); })
-    .catch(err => console.warn('⚠️  MongoDB error — running in-memory only:', err.message));
+    .catch(e => console.warn('⚠️  MongoDB:', e.message));
 }
 
-// ── In-memory state ───────────────────────────────────────────────────────────
-const channels = new Map();   // channelId → { users, password, messages, hasActivity, lastActivity }
-const users    = new Map();   // socketId  → { username, channelId }
+// ── Channel structure ─────────────────────────────────────────────
+// channels: Map<channelId, {
+//   users: Map<socketId, UserInfo>,
+//   password: string|null,
+//   host: socketId,
+//   cohosts: Set<socketId>,
+//   muted: Set<socketId>,
+//   messages: [],
+//   memberHistory: Map<username, { socketId|null, lastSeen, online }>,
+//   hasActivity: bool, lastActivity: number
+// }>
+const channels = new Map();
+const users    = new Map(); // socketId → { username, channelId }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function getOrCreate(channelId, password = null) {
+function getOrCreate(channelId, password = null, hostSocketId) {
   if (!channels.has(channelId)) {
     channels.set(channelId, {
-      users: new Map(), password, messages: [],
-      hasActivity: false, lastActivity: null,
+      users:         new Map(),
+      password,
+      host:          hostSocketId,
+      cohosts:       new Set(),
+      muted:         new Set(),
+      messages:      [],
+      memberHistory: new Map(),
+      hasActivity:   false,
+      lastActivity:  null,
     });
   }
   return channels.get(channelId);
 }
+
 function pruneChannel(id) {
   const ch = channels.get(id);
   if (ch && ch.users.size === 0) channels.delete(id);
 }
+
 function getUserInfo(sid) {
   return users.get(sid) || { username: 'Anonymous', channelId: null };
 }
+
+function isPrivileged(ch, sid) {
+  return ch.host === sid || ch.cohosts.has(sid);
+}
+
 function publicChannelList() {
   const list = [];
   for (const [id, ch] of channels) {
     if (!ch.password) {
       list.push({
-        id, userCount: ch.users.size,
+        id,
+        userCount:   ch.users.size,
         hasActivity: ch.hasActivity,
-        users: Array.from(ch.users.values()).map(u => u.username),
+        users:       Array.from(ch.users.values()).map(u => u.username),
+        host:        users.get(ch.host)?.username || '',
       });
     }
   }
@@ -98,43 +106,50 @@ function publicChannelList() {
     return (!isNaN(na) && !isNaN(nb)) ? na - nb : a.id < b.id ? -1 : 1;
   });
 }
+
 function broadcastChannelList() { io.emit('channel-list', publicChannelList()); }
 
-// ── REST ──────────────────────────────────────────────────────────────────────
+function channelRoster(ch) {
+  // Send full roster including offline members
+  const online = Array.from(ch.users.entries()).map(([sid, u]) => ({
+    socketId: sid,
+    username: u.username,
+    isSpeaking: u.isSpeaking,
+    isMuted:   ch.muted.has(sid),
+    isHost:    ch.host === sid,
+    isCohost:  ch.cohosts.has(sid),
+    online:    true,
+  }));
+
+  const offline = [];
+  for (const [uname, meta] of ch.memberHistory) {
+    if (!meta.online) {
+      offline.push({ socketId: null, username: uname, online: false, lastSeen: meta.lastSeen });
+    }
+  }
+
+  return [...online, ...offline];
+}
+
+// ── REST ──────────────────────────────────────────────────────────
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Serve socket.io client at a stable cacheable URL for the service worker
-app.get('/js/socket.io.js', (req, res) => {
-  const clientPath = path.join(__dirname, 'node_modules', 'socket.io', 'client-dist', 'socket.io.min.js');
-  res.setHeader('Cache-Control', 'public, max-age=604800');
-  res.sendFile(clientPath);
-});
-
-app.get('/api/health', (_req, res) =>
+app.get('/api/health', (_, res) =>
   res.json({ status: 'ok', db: dbConnected, channels: channels.size, users: users.size }));
 
-// Return all LAN IPs so the frontend can show the shareable URL
-app.get('/api/network', (_req, res) => {
-  const nets   = os.networkInterfaces();
+app.get('/api/channels', (_, res) => res.json(publicChannelList()));
+
+app.get('/api/network', (_, res) => {
+  const nets = os.networkInterfaces();
   const lanIPs = [];
   for (const ifaces of Object.values(nets))
     for (const iface of ifaces)
       if (iface.family === 'IPv4' && !iface.internal) lanIPs.push(iface.address);
   const proto = useHttps ? 'https' : 'http';
-  res.json({
-    urls:   lanIPs.map(ip => `${proto}://${ip}:${PORT}`),
-    port:   PORT,
-    online: !!process.env.RENDER_EXTERNAL_URL || !!process.env.RAILWAY_PUBLIC_DOMAIN,
-    publicUrl: process.env.RENDER_EXTERNAL_URL || process.env.RAILWAY_PUBLIC_DOMAIN
-               ? `https://${process.env.RENDER_EXTERNAL_URL || process.env.RAILWAY_PUBLIC_DOMAIN}`
-               : null
-  });
+  res.json({ urls: lanIPs.map(ip => `${proto}://${ip}:${PORT}`), port: PORT });
 });
 
-app.get('/api/channels', (_req, res) => res.json(publicChannelList()));
-
-// Fetch persistent message history for a channel
 app.get('/api/channels/:id/messages', async (req, res) => {
   if (!dbConnected) return res.json([]);
   const msgs = await Message.find({ channelId: req.params.id })
@@ -142,7 +157,7 @@ app.get('/api/channels/:id/messages', async (req, res) => {
   res.json(msgs.reverse());
 });
 
-// ── Socket.io ─────────────────────────────────────────────────────────────────
+// ── Socket.io ─────────────────────────────────────────────────────
 io.on('connection', socket => {
   console.log(`[+] ${socket.id}`);
   users.set(socket.id, { username: 'Anonymous', channelId: null });
@@ -152,57 +167,61 @@ io.on('connection', socket => {
     users.set(socket.id, { ...getUserInfo(socket.id), username });
   });
 
+  // ── Join ──────────────────────────────────────────────────────
   socket.on('join-channel', async ({ channelId, password = '', username = 'Anonymous' }) => {
     channelId = String(channelId).trim().slice(0, 32);
     if (!channelId) return;
     doLeave(socket);
 
-    // Auth
     if (channels.has(channelId)) {
       const ch = channels.get(channelId);
       if (ch.password && ch.password !== password) {
-        socket.emit('join-error', { message: 'Incorrect password.' });
-        return;
+        socket.emit('join-error', { message: 'Incorrect password.' }); return;
       }
     }
 
     const uname = String(username || 'Anonymous').trim().slice(0, 24) || 'Anonymous';
-    const ch    = getOrCreate(channelId, password || null);
+    const ch    = getOrCreate(channelId, password || null, socket.id);
+
+    // If first user, they become host
+    if (ch.users.size === 0) ch.host = socket.id;
 
     const existingPeers = Array.from(ch.users.entries())
       .map(([sid, info]) => ({ socketId: sid, username: info.username }));
 
     ch.users.set(socket.id, { username: uname, isSpeaking: false });
+    ch.memberHistory.set(uname, { socketId: socket.id, lastSeen: Date.now(), online: true });
     users.set(socket.id, { username: uname, channelId });
     socket.join(channelId);
 
-    // Load message history (DB preferred, else in-memory)
+    // Load history
     let history = ch.messages.slice(-100);
     if (dbConnected) {
       try {
         const dbMsgs = await Message.find({ channelId }).sort({ timestamp: -1 }).limit(100).lean();
-        history = dbMsgs.reverse().map(m => ({
-          id: m.id, socketId: m.socketId, username: m.username,
-          text: m.text, timestamp: m.timestamp,
-        }));
+        history = dbMsgs.reverse();
       } catch (_) {}
     }
 
     socket.emit('joined-channel', {
       channelId, existingPeers,
       isPrivate: !!ch.password,
-      messages: history,
+      messages:  history,
+      isHost:    ch.host === socket.id,
+      isCohost:  ch.cohosts.has(socket.id),
+      isMuted:   ch.muted.has(socket.id),
+      roster:    channelRoster(ch),
     });
 
     socket.to(channelId).emit('user-joined', { socketId: socket.id, username: uname });
 
-    // Persist channel meta to DB
+    // Broadcast updated roster to all
+    io.to(channelId).emit('roster-update', channelRoster(ch));
+
     if (dbConnected) {
-      ChannelMeta.findOneAndUpdate(
-        { channelId },
-        { isPrivate: !!ch.password, lastActive: new Date(), $setOnInsert: { channelId, createdBy: uname } },
-        { upsert: true, new: true }
-      ).catch(() => {});
+      mongoose.model('ChannelMeta', new mongoose.Schema({ channelId: { type: String, unique: true }, isPrivate: Boolean, lastActive: Date, createdBy: String }))
+        .findOneAndUpdate({ channelId }, { isPrivate: !!ch.password, lastActive: new Date(), $setOnInsert: { channelId, createdBy: uname } }, { upsert: true, new: true })
+        .catch(() => {});
     }
 
     broadcastChannelList();
@@ -215,54 +234,136 @@ io.on('connection', socket => {
     if (!channelId) return;
     const ch = channels.get(channelId);
     if (ch) {
+      const uname = ch.users.get(sock.id)?.username;
       ch.users.delete(sock.id);
+      ch.muted.delete(sock.id);
+
+      // Mark offline in history
+      if (uname) {
+        ch.memberHistory.set(uname, { socketId: null, lastSeen: Date.now(), online: false });
+      }
+
+      // Transfer host if host left
+      if (ch.host === sock.id && ch.users.size > 0) {
+        // Promote oldest cohost, or first user
+        const newHost = ch.cohosts.size > 0
+          ? [...ch.cohosts][0]
+          : [...ch.users.keys()][0];
+        ch.host = newHost;
+        ch.cohosts.delete(newHost);
+        io.to(channelId).emit('host-changed', { newHostId: newHost, newHostName: ch.users.get(newHost)?.username });
+      }
+
       sock.leave(channelId);
       sock.to(channelId).emit('user-left', { socketId: sock.id });
+      io.to(channelId).emit('roster-update', channelRoster(ch));
       pruneChannel(channelId);
     }
     users.set(sock.id, { ...getUserInfo(sock.id), channelId: null });
     broadcastChannelList();
   }
 
-  // WebRTC signaling
+  // ── WebRTC signaling ──────────────────────────────────────────
   socket.on('signal', ({ targetId, data }) => {
     if (targetId && data) socket.to(targetId).emit('signal', { fromId: socket.id, data });
   });
 
-  // Speaking indicator
+  // ── Speaking ──────────────────────────────────────────────────
   socket.on('speaking', ({ isSpeaking }) => {
     const { channelId } = getUserInfo(socket.id);
     if (!channelId) return;
     const ch = channels.get(channelId);
     if (!ch) return;
+    if (ch.muted.has(socket.id)) return; // server-enforced mute
     const cu = ch.users.get(socket.id);
     if (cu) cu.isSpeaking = !!isSpeaking;
     if (isSpeaking) { ch.hasActivity = true; ch.lastActivity = Date.now(); }
     socket.to(channelId).emit('user-speaking', { socketId: socket.id, isSpeaking: !!isSpeaking });
   });
 
-  // Chat message
+  // ── Chat ──────────────────────────────────────────────────────
   socket.on('chat-message', async ({ text }) => {
     const { channelId, username } = getUserInfo(socket.id);
     if (!channelId || !String(text || '').trim()) return;
     const ch = channels.get(channelId);
     if (!ch) return;
-
     const msg = {
-      id:        `${socket.id}-${Date.now()}`,
-      socketId:  socket.id,
-      username,
-      text:      String(text).trim().slice(0, 500),
-      timestamp: new Date().toISOString(),
+      id: `${socket.id}-${Date.now()}`, socketId: socket.id, username,
+      text: String(text).trim().slice(0, 500), timestamp: new Date().toISOString(),
     };
-
     ch.messages.push(msg);
     if (ch.messages.length > 200) ch.messages.shift();
     io.to(channelId).emit('chat-message', msg);
+    if (dbConnected) Message.create({ ...msg, channelId }).catch(() => {});
+  });
 
-    // Persist to DB
-    if (dbConnected) {
-      Message.create({ ...msg, channelId }).catch(() => {});
+  // ── Private message ───────────────────────────────────────────
+  socket.on('private-message', ({ targetId, text }) => {
+    if (!targetId || !text) return;
+    const { username } = getUserInfo(socket.id);
+    const msg = {
+      fromId: socket.id, fromName: username,
+      text: String(text).trim().slice(0, 500),
+      timestamp: new Date().toISOString(),
+    };
+    socket.to(targetId).emit('private-message', msg);
+    socket.emit('private-message-sent', { ...msg, toId: targetId });
+  });
+
+  // ── Private call (WebRTC direct) ──────────────────────────────
+  socket.on('private-signal', ({ targetId, data }) => {
+    if (targetId && data) socket.to(targetId).emit('private-signal', { fromId: socket.id, data });
+  });
+
+  // ── Host: mute user ───────────────────────────────────────────
+  socket.on('mute-user', ({ targetId, muted }) => {
+    const { channelId } = getUserInfo(socket.id);
+    if (!channelId) return;
+    const ch = channels.get(channelId);
+    if (!ch || !isPrivileged(ch, socket.id)) return;
+    if (muted) ch.muted.add(targetId);
+    else       ch.muted.delete(targetId);
+    io.to(targetId).emit('you-were-muted', { muted });
+    io.to(channelId).emit('user-muted', { socketId: targetId, muted });
+    io.to(channelId).emit('roster-update', channelRoster(ch));
+  });
+
+  // ── Host: kick user ───────────────────────────────────────────
+  socket.on('kick-user', ({ targetId }) => {
+    const { channelId } = getUserInfo(socket.id);
+    if (!channelId) return;
+    const ch = channels.get(channelId);
+    if (!ch || !isPrivileged(ch, socket.id)) return;
+    if (targetId === ch.host) return; // can't kick host
+    io.to(targetId).emit('you-were-kicked', { channelId });
+    const targetSock = io.sockets.sockets.get(targetId);
+    if (targetSock) doLeave(targetSock);
+  });
+
+  // ── Host: assign cohost ───────────────────────────────────────
+  socket.on('assign-cohost', ({ targetId, isCohost }) => {
+    const { channelId } = getUserInfo(socket.id);
+    if (!channelId) return;
+    const ch = channels.get(channelId);
+    if (!ch || ch.host !== socket.id) return; // only host can assign
+    if (isCohost) ch.cohosts.add(targetId);
+    else          ch.cohosts.delete(targetId);
+    io.to(targetId).emit('your-role-changed', { isCohost, channelId });
+    io.to(channelId).emit('roster-update', channelRoster(ch));
+  });
+
+  // ── Host: rescan & reinvite offline member ────────────────────
+  socket.on('reinvite-member', ({ username }) => {
+    const { channelId } = getUserInfo(socket.id);
+    if (!channelId) return;
+    const ch = channels.get(channelId);
+    if (!ch || !isPrivileged(ch, socket.id)) return;
+    // Find their socket if reconnected elsewhere
+    for (const [sid, u] of users) {
+      if (u.username === username && !u.channelId) {
+        io.to(sid).emit('reinvite', { channelId, fromName: getUserInfo(socket.id).username });
+        break;
+      }
     }
   });
 
@@ -277,32 +378,25 @@ io.on('connection', socket => {
   socket.emit('channel-list', publicChannelList());
 });
 
-// ── Decay activity ────────────────────────────────────────────────────────────
+// ── Decay activity ────────────────────────────────────────────────
 setInterval(() => {
-  const threshold = Date.now() - 4000;
-  for (const ch of channels.values()) {
-    if (ch.hasActivity && ch.lastActivity < threshold) ch.hasActivity = false;
-  }
+  const t = Date.now() - 4000;
+  for (const ch of channels.values())
+    if (ch.hasActivity && ch.lastActivity < t) ch.hasActivity = false;
 }, 5000);
 
-// ── Start ─────────────────────────────────────────────────────────────────────
+// ── Start ─────────────────────────────────────────────────────────
 server.listen(PORT, '0.0.0.0', () => {
-  const nets   = os.networkInterfaces();
+  const nets = os.networkInterfaces();
   const lanIPs = [];
   for (const ifaces of Object.values(nets))
     for (const iface of ifaces)
       if (iface.family === 'IPv4' && !iface.internal) lanIPs.push(iface.address);
-
   const proto = useHttps ? 'https' : 'http';
-  const bar = '─'.repeat(52);
-  console.log(`\n┌${bar}┐`);
-  console.log(`│   🎙️  S-talk  —  Server Ready                │`);
-  console.log(`├${bar}┤`);
-  console.log(`│  ► Local  :  ${proto}://localhost:${PORT}                    │`);
-  lanIPs.forEach(ip => console.log(`│  ► LAN    :  ${proto}://${ip}:${PORT}                    │`));
-  if (dbConnected) console.log(`│  ► DB     :  MongoDB connected ✅                  │`);
-  else             console.log(`│  ► DB     :  In-memory (set MONGODB_URI for DB)    │`);
-  console.log(`└${bar}┘\n`);
+  console.log(`\n🎙️  S-talk Server Ready`);
+  console.log(`   Local  : ${proto}://localhost:${PORT}`);
+  lanIPs.forEach(ip => console.log(`   Network: ${proto}://${ip}:${PORT}`));
+  console.log(`   DB     : ${dbConnected ? 'MongoDB ✅' : 'In-memory'}\n`);
 });
 
 module.exports = { app, server };
