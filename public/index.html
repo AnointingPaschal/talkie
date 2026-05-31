@@ -31,8 +31,22 @@
     }
   </script>
   <link rel="stylesheet" href="style.css">
+  <style>
+    /* ── Portrait orientation lock ──────────────────────────── */
+    @media (orientation: landscape) and (max-height: 500px) {
+      body > *:not(#landscape-block) { display: none !important; }
+      #landscape-block { display: flex !important; }
+    }
+  </style>
 </head>
 <body class="bg-white dark:bg-[#0f0f14] text-gray-900 dark:text-gray-100 overflow-hidden h-screen font-sans select-none transition-colors duration-200">
+
+<!-- Landscape blocker -->
+<div id="landscape-block" class="hidden fixed inset-0 z-[99999] bg-[#0f0f14] flex-col items-center justify-center gap-4 p-8 text-center">
+  <div class="text-5xl">📱</div>
+  <p class="text-white font-bold text-lg">Please rotate your device</p>
+  <p class="text-gray-400 text-sm">S-talk works in portrait mode only</p>
+</div>
 
 <!-- ══════════════════════════════════════ SETUP ══ -->
 <div id="setup-screen" class="fixed inset-0 z-50 flex flex-col items-center justify-center p-5 bg-gradient-to-br from-white via-indigo-50/30 to-violet-50/30 dark:from-[#0f0f14] dark:via-indigo-950/20 dark:to-[#0f0f14]">
@@ -488,7 +502,19 @@ if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catc
 
 loadNetworkUrls();
 </script>
-<script src="/socket.io/socket.io.js"></script>
+<script>
+// Load socket.io — try local cached copy first, then server-provided
+(function() {
+  var s = document.createElement('script');
+  s.src = '/socket.io/socket.io.js';
+  s.onerror = function() {
+    var f = document.createElement('script');
+    f.src = '/js/socket.io.js';
+    document.head.appendChild(f);
+  };
+  document.head.appendChild(s);
+})();
+</script>
 <script src="app.js"></script>
 </body>
 </html>

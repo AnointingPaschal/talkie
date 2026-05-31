@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>S-talk — Offline</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' }
+    var t = localStorage.getItem('stalk-theme') || (window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light');
+    document.documentElement.classList.toggle('dark', t === 'dark');
+  </script>
+</head>
+<body class="bg-white dark:bg-[#0f0f14] text-gray-900 dark:text-gray-100 min-h-screen flex flex-col items-center justify-center p-6 font-sans">
+  <div class="text-center max-w-xs space-y-6">
+    <div class="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-2xl shadow-indigo-500/30">
+      <img src="/logo.svg" class="w-12 h-12" alt="S-talk">
+    </div>
+    <div>
+      <h1 class="text-2xl font-extrabold tracking-tight">S-talk</h1>
+      <p class="text-gray-500 dark:text-gray-400 text-sm mt-2">You're offline. To use S-talk you need to be connected to a server.</p>
+    </div>
+    <div class="bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl p-4 border border-indigo-200 dark:border-indigo-800 text-left space-y-2">
+      <p class="text-xs font-bold tracking-widest uppercase text-indigo-600 dark:text-indigo-400">For LAN use</p>
+      <p class="text-xs text-gray-600 dark:text-gray-400">Run <code class="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded font-mono text-xs">npm start</code> on a computer, then open the LAN URL shown in the terminal.</p>
+    </div>
+    <button onclick="window.location.reload()" class="w-full py-3 rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-bold text-sm shadow-lg shadow-indigo-500/30 active:scale-95 transition-all">
+      Try again
+    </button>
+  </div>
+</body>
+</html>

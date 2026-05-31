@@ -104,6 +104,13 @@ function broadcastChannelList() { io.emit('channel-list', publicChannelList()); 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Serve socket.io client at a stable cacheable URL for the service worker
+app.get('/js/socket.io.js', (req, res) => {
+  const clientPath = path.join(__dirname, 'node_modules', 'socket.io', 'client-dist', 'socket.io.min.js');
+  res.setHeader('Cache-Control', 'public, max-age=604800');
+  res.sendFile(clientPath);
+});
+
 app.get('/api/health', (_req, res) =>
   res.json({ status: 'ok', db: dbConnected, channels: channels.size, users: users.size }));
 

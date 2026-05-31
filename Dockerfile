@@ -2,10 +2,7 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Only copy server-relevant files — no Electron/Capacitor deps
 COPY package.json ./
-
-# Install only the 5 server dependencies explicitly
 RUN npm install express socket.io selfsigned mongoose dotenv
 
 COPY server.js .

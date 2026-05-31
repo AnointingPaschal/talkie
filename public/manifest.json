@@ -4,29 +4,16 @@
   "description": "Real-time voice & chat over LAN or internet",
   "start_url": "/",
   "display": "standalone",
-  "orientation": "any",
-  "background_color": "#060810",
+  "orientation": "portrait",
+  "background_color": "#0f0f14",
   "theme_color": "#6366f1",
   "categories": ["communication", "utilities"],
+  "prefer_related_applications": false,
   "icons": [
-    {
-      "src": "/logo.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    },
-    {
-      "src": "/logo.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "maskable"
-    }
+    { "src": "/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
   ],
   "shortcuts": [
-    {
-      "name": "Open App",
-      "url": "/",
-      "icons": [{ "src": "/logo.svg", "sizes": "any" }]
-    }
+    { "name": "Open S-talk", "url": "/", "icons": [{ "src": "/logo.svg", "sizes": "any" }] }
   ]
 }

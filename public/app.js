@@ -180,18 +180,32 @@ function setupAnalyser() {
 // ── Socket ────────────────────────────────────────────────────────
 function initSocket() {
   const url = getServerUrl();
-  state.socket = io(url, { rejectUnauthorized: false });
+  state.socket = io(url, {
+    rejectUnauthorized: false,
+    timeout: 8000,
+    reconnectionDelay: 2000,
+    reconnectionDelayMax: 10000,
+  });
+
+  let connectAttempts = 0;
 
   state.socket.on('connect', () => {
+    connectAttempts = 0;
     setConnStatus(true);
+    hideOfflineBanner();
     state.socket.emit('set-username', state.username);
     state.socket.emit('get-channels');
     updateServerBadge(url);
-    // Auto-join pending channel
     if (state.pendingChannel) {
       _joinChannel(state.pendingChannel, '');
       state.pendingChannel = null;
     }
+  });
+
+  state.socket.on('connect_error', () => {
+    connectAttempts++;
+    setConnStatus(false);
+    if (connectAttempts >= 2) showOfflineBanner(url);
   });
 
   state.socket.on('disconnect', () => {
@@ -200,10 +214,12 @@ function initSocket() {
     state.peerUsernames.clear();
     state.channel = null;
     updateStatus(); setChannelUIState(false);
+    showOfflineBanner(url);
   });
 
   state.socket.on('reconnect', () => {
     showToast('📡 Reconnected', 'success');
+    hideOfflineBanner();
     if (state.channel) state.socket.emit('join-channel', { channelId: state.channel, username: state.username });
   });
 
@@ -245,6 +261,43 @@ function initSocket() {
   state.socket.on('chat-message',  msg  => appendChatMsg(msg));
   state.socket.on('join-error',    ({ message }) => showToast('❌ ' + message, 'error'));
 }
+
+// ── Offline banner ────────────────────────────────────────────────
+function showOfflineBanner(currentUrl) {
+  let el = $('offline-banner');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'offline-banner';
+    el.className = 'fixed top-14 left-0 right-0 z-50 mx-3 mt-2';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `
+    <div class="bg-amber-50 dark:bg-amber-900/40 border border-amber-200 dark:border-amber-700 rounded-2xl p-3.5 shadow-lg">
+      <p class="text-xs font-bold text-amber-700 dark:text-amber-400 mb-1">📡 Can't reach server</p>
+      <p class="text-[11px] text-amber-600 dark:text-amber-500 mb-2.5">You're offline or the server is unreachable. Enter a LAN server URL to connect locally.</p>
+      <div class="flex gap-2">
+        <input id="lan-url-input" type="url" value="${currentUrl.startsWith('http://localhost') ? '' : currentUrl}"
+          placeholder="http://192.168.1.x:3000"
+          class="flex-1 text-xs px-3 py-2 rounded-xl bg-white dark:bg-gray-800 border border-amber-200 dark:border-amber-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400">
+        <button onclick="connectToLAN()" class="px-3 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 active:scale-95 transition-all whitespace-nowrap">Connect</button>
+      </div>
+    </div>`;
+}
+
+function hideOfflineBanner() {
+  const el = $('offline-banner');
+  if (el) el.remove();
+}
+
+window.connectToLAN = function() {
+  const url = $('lan-url-input')?.value.trim();
+  if (!url) { showToast('⚠️ Enter a URL', 'warning'); return; }
+  localStorage.setItem('wt_server', url);
+  state.socket?.disconnect();
+  hideOfflineBanner();
+  initSocket();
+  showToast('🔄 Connecting to ' + url, 'info');
+};
 
 // ── WebRTC ────────────────────────────────────────────────────────
 function createPeer(peerId, isInitiator) {
