@@ -1066,3 +1066,36 @@ input, textarea { user-select: text; }
 .net-url-copy.copied { color: var(--emerald); border-color: rgba(52,211,153,.3); }
 
 .net-info-card { border-color: rgba(34,211,238,.15); }
+
+/* ═══ Mobile boot overlay ════════════════════════════════════ */
+#boot-overlay {
+  position: fixed; inset: 0; z-index: 999999;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column;
+}
+.boot-card {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 16px;
+  padding: 48px 40px;
+  background: rgba(12,15,29,.9);
+  border: 1px solid var(--border-s);
+  border-radius: var(--r-xl);
+  backdrop-filter: blur(30px);
+  box-shadow: 0 0 80px rgba(99,102,241,.15);
+}
+.boot-logo  { width: 80px; height: 80px; border-radius: 20px; }
+.boot-title {
+  font-size: 24px; font-weight: 800; letter-spacing: -.5px;
+  background: linear-gradient(135deg, var(--t1) 0%, var(--indigo) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.boot-status { font-size: 13px; color: var(--t2); }
+.boot-spinner {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 3px solid rgba(99,102,241,.2);
+  border-top-color: var(--indigo);
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }

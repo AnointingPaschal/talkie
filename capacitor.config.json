@@ -1,21 +1,20 @@
 {
-  "appId": "com.walkietalkie.app",
+  "appId": "com.stalk.app",
   "appName": "S-talk",
   "webDir": "public",
-  "server": {
-    "url": "https://talkie-pnv2.onrender.com",
-    "cleartext": false
-  },
   "plugins": {
+    "NodeJS": {
+      "nodeDir": "nodejs"
+    },
     "SplashScreen": {
-      "launchShowDuration": 0,
+      "launchShowDuration": 1500,
       "backgroundColor": "#060810",
       "showSpinner": false
     }
   },
   "android": {
     "backgroundColor": "#060810",
-    "allowMixedContent": false,
+    "allowMixedContent": true,
     "captureInput": true,
     "webContentsDebuggingEnabled": false
   },

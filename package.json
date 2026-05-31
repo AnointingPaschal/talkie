@@ -11,15 +11,16 @@
     "build:win":      "electron-builder --win --x64",
     "build:mac":      "electron-builder --mac",
     "build:linux":    "electron-builder --linux",
-    "cap:init":       "cap init WalkieTalkie com.walkietalkie.app --web-dir public",
-    "cap:android":    "cap add android",
-    "cap:ios":        "cap add ios",
-    "cap:sync":       "cap sync",
+    "cap:init":       "cap init S-talk com.stalk.app --web-dir public",
+    "cap:android":    "npm run nodejs:install && cap add android",
+    "cap:ios":        "npm run nodejs:install && cap add ios",
+    "cap:sync":       "npm run nodejs:install && cap sync",
     "cap:run:android":"cap run android",
     "cap:run:ios":    "cap run ios",
     "cap:open:android":"cap open android",
     "cap:open:ios":   "cap open ios",
-    "cap:build:android":"cap sync android && cd android && ./gradlew assembleRelease"
+    "cap:build:android":"cap sync android && cd android && ./gradlew assembleRelease",
+    "nodejs:install": "cd nodejs && npm install"
   },
   "dependencies": {
     "express":    "^4.19.2",
@@ -37,7 +38,8 @@
     "@capacitor/cli":       "^6.0.0",
     "@capacitor/core":      "^6.0.0",
     "@capacitor/android":   "^6.0.0",
-    "@capacitor/ios":       "^6.0.0"
+    "@capacitor/ios":       "^6.0.0",
+    "capacitor-nodejs":     "^3.0.0"
   },
   "build": {
     "appId":       "com.walkie-talkie.app",

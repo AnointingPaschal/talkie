@@ -387,6 +387,55 @@ loadNetworkUrls();
     navigator.serviceWorker.register("/sw.js").catch(() => {});
   }
 </script>
+<script>
+// ── Auto-start embedded server in Capacitor (mobile) ─────────────────────────
+(function () {
+  if (!window.Capacitor?.isNativePlatform()) return;
+
+  const NodeJS = window.Capacitor.Plugins.NodeJS;
+  if (!NodeJS) { console.warn('NodeJS plugin not found'); return; }
+
+  // Show a startup overlay while server boots
+  const overlay = document.createElement('div');
+  overlay.id = 'boot-overlay';
+  overlay.innerHTML = `
+    <div class="boot-card">
+      <img src="/logo.svg" class="boot-logo" alt="S-talk">
+      <div class="boot-title">S-talk</div>
+      <div class="boot-status" id="boot-status">Starting server…</div>
+      <div class="boot-spinner"></div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  // Start Node.js server
+  NodeJS.start({ args: [] })
+    .then(() => {
+      document.getElementById('boot-status').textContent = 'Connecting…';
+    })
+    .catch(err => {
+      document.getElementById('boot-status').textContent = 'Server error: ' + err.message;
+    });
+
+  // Listen for server-ready message from Node.js
+  NodeJS.addListener('message', function (event) {
+    const msg = event.args && event.args[0];
+    if (!msg || msg.event !== 'server-ready') return;
+
+    window._stalkLanIPs = msg.lanIPs || [];
+    window._stalkPort   = msg.port;
+
+    // Small delay so Socket.io server is fully up
+    setTimeout(() => {
+      const o = document.getElementById('boot-overlay');
+      if (o) {
+        o.style.opacity = '0';
+        o.style.transition = 'opacity .3s';
+        setTimeout(() => o.remove(), 300);
+      }
+    }, 600);
+  });
+})();
+</script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="app.js"></script>
 

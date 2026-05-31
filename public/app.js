@@ -49,12 +49,14 @@ function showToast(msg, type = 'info', duration = 3000) {
 
 // ── Server URL ────────────────────────────────────────────────────────────────
 function getServerUrl() {
-  // Electron always uses local
+  // Capacitor native app — connect to embedded local server
+  if (window.Capacitor?.isNativePlatform()) return 'http://localhost:3000';
+  // Electron always uses local HTTPS
   if (window.electronAPI) return 'https://localhost:3000';
   // Custom override saved by user
   const saved = localStorage.getItem('wt_server');
   if (saved) return saved;
-  // Use current origin (works both locally and on Railway/Render)
+  // Use current origin (works both locally and on Render)
   return window.location.origin;
 }
 
