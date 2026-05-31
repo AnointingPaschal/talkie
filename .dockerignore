@@ -1,0 +1,11 @@
+node_modules
+.env
+*.log
+dist/
+build/
+.DS_Store
+Thumbs.db
+electron/
+package-lock.json
+README.md
+railway.toml
