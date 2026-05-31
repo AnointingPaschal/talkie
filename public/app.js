@@ -1,29 +1,17 @@
-/* ─────────────────────────────────────────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────────────
    S-talk — Frontend  (WebRTC mesh + Socket.io)
-   ───────────────────────────────────────────────────────────────────────────── */
+   ───────────────────────────────────────────────────────────────── */
 'use strict';
 
-// ── State ─────────────────────────────────────────────────────────────────────
 const state = {
-  socket:           null,
-  localStream:      null,
-  audioCtx:         null,
-  analyser:         null,
-  peers:            new Map(),
-  peerAudios:       new Map(),
-  peerUsernames:    new Map(),
-  channel:          null,
-  username:         '',
-  mode:             'ptt',
-  isTransmitting:   false,
-  isSpeaking:       false,
-  isOutgoingMuted:  false,
-  scanActive:       false,
-  channelList:      [],
-  vuBars:           [],
-  speakTimer:       null,
-  toastTimer:       null,
-  missedCandidates: new Map(),
+  socket: null, localStream: null,
+  audioCtx: null, analyser: null,
+  peers: new Map(), peerAudios: new Map(), peerUsernames: new Map(),
+  channel: null, username: '', pendingChannel: null,
+  mode: 'ptt', isTransmitting: false, isSpeaking: false,
+  isOutgoingMuted: false, scanActive: false,
+  channelList: [], vuBars: [],
+  speakTimer: null, toastTimer: null, missedCandidates: new Map(),
 };
 
 const ICE_CFG = {
@@ -34,44 +22,33 @@ const ICE_CFG = {
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
     { urls: 'stun:stun.relay.metered.ca:80' },
-    { urls: 'stun:stun.stunprotocol.org:3478' },
   ],
   iceCandidatePoolSize: 10,
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function $(id) { return document.getElementById(id); }
-
-function escHtml(str) {
-  const d = document.createElement('div');
-  d.textContent = str;
-  return d.innerHTML;
-}
-
+function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-function showToast(msg, type = 'info', duration = 3000) {
+function randomChannel() {
+  return String(Math.floor(Math.random() * 9000) + 1000);
+}
+
+function showToast(msg, type = 'info', ms = 3000) {
   clearTimeout(state.toastTimer);
   const el = $('toast');
   el.textContent = msg;
-  el.className   = `toast show ${type}`;
-  state.toastTimer = setTimeout(() => { el.className = 'toast'; }, duration);
+  el.className = 'fixed bottom-24 left-1/2 -translate-x-1/2 z-[9999] px-5 py-2.5 rounded-full text-sm font-medium shadow-xl whitespace-nowrap pointer-events-none toast-show toast-' + type;
+  state.toastTimer = setTimeout(() => { el.className = 'fixed bottom-24 left-1/2 -translate-x-1/2 translate-y-20 opacity-0 pointer-events-none z-[9999] px-5 py-2.5 rounded-full text-sm font-medium shadow-xl whitespace-nowrap transition-all duration-300'; }, ms);
 }
 
-// ── Server URL ────────────────────────────────────────────────────────────────
 function getServerUrl() {
-  // Capacitor native app — connect to embedded local server
   if (window.Capacitor?.isNativePlatform()) return 'http://localhost:3000';
-  // Electron always uses local HTTPS
   if (window.electronAPI) return 'https://localhost:3000';
-  // Custom override saved by user
-  const saved = localStorage.getItem('wt_server');
-  if (saved) return saved;
-  // Use current origin (works both locally and on Render)
-  return window.location.origin;
+  return localStorage.getItem('wt_server') || window.location.origin;
 }
 
-// ── DOMContentLoaded ──────────────────────────────────────────────────────────
+// ── Init ──────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   buildVUMeter();
   wireSetupScreen();
@@ -82,51 +59,47 @@ document.addEventListener('DOMContentLoaded', () => {
   wireServerSwitch();
 });
 
-// ── VU Meter ──────────────────────────────────────────────────────────────────
+// ── VU Meter ──────────────────────────────────────────────────────
 function buildVUMeter() {
-  const container = $('vu-bars');
-  for (let i = 0; i < 28; i++) {
-    const bar = document.createElement('div');
-    bar.className = 'vu-bar';
-    container.appendChild(bar);
-    state.vuBars.push(bar);
+  const c = $('vu-bars');
+  for (let i = 0; i < 30; i++) {
+    const b = document.createElement('div');
+    b.className = 'vu-bar';
+    c.appendChild(b);
+    state.vuBars.push(b);
   }
 }
 
 function animateVU() {
   if (!state.analyser) return;
   const data = new Uint8Array(state.analyser.frequencyBinCount);
+  const isDark = () => document.documentElement.classList.contains('dark');
   function frame() {
     requestAnimationFrame(frame);
     state.analyser.getByteFrequencyData(data);
-    let sum = 0;
-    const lo = 2, hi = Math.floor(data.length * 0.75);
+    let sum = 0; const lo = 2, hi = Math.floor(data.length * .75);
     for (let i = lo; i < hi; i++) sum += data[i];
     const level = sum / ((hi - lo) * 255);
     const active = state.isTransmitting;
-    const n      = state.vuBars.length;
+    const n = state.vuBars.length;
     for (let i = 0; i < n; i++) {
-      const threshold = i / n;
-      const lit       = active && level > threshold * 0.55;
-      const pct       = lit ? Math.min(100, 12 + (level - threshold * 0.55) * 280) : 6;
+      const t = i / n;
+      const lit = active && level > t * .55;
+      const pct = lit ? Math.min(100, 10 + (level - t * .55) * 260) : 6;
       state.vuBars[i].style.height = pct + '%';
-      let color;
-      if (i < n * 0.6)       color = lit ? '#34d399' : 'rgba(255,255,255,.05)';
-      else if (i < n * 0.82) color = lit ? '#fbbf24' : 'rgba(255,255,255,.05)';
-      else                   color = lit ? '#fb7185' : 'rgba(255,255,255,.05)';
-      state.vuBars[i].style.background = color;
+      let c;
+      if (i < n * .6)       c = lit ? '#34d399' : (isDark() ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.06)');
+      else if (i < n * .82) c = lit ? '#fbbf24' : (isDark() ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.06)');
+      else                  c = lit ? '#fb7185' : (isDark() ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.06)');
+      state.vuBars[i].style.background = c;
     }
     if (active) {
-      const speaking = level > 0.04;
+      const speaking = level > .04;
       if (speaking !== state.isSpeaking) {
         clearTimeout(state.speakTimer);
         if (!speaking) {
-          state.speakTimer = setTimeout(() => {
-            state.isSpeaking = false;
-            state.socket?.emit('speaking', { isSpeaking: false });
-          }, 400);
+          state.speakTimer = setTimeout(() => { state.isSpeaking = false; state.socket?.emit('speaking', { isSpeaking: false }); }, 400);
         } else {
-          clearTimeout(state.speakTimer);
           state.isSpeaking = true;
           state.socket?.emit('speaking', { isSpeaking: true });
         }
@@ -136,35 +109,45 @@ function animateVU() {
   frame();
 }
 
-// ── Setup Screen ──────────────────────────────────────────────────────────────
+// ── Setup Screen ──────────────────────────────────────────────────
 function wireSetupScreen() {
-  const startBtn   = $('start-btn');
-  const usernameEl = $('username-input');
-  startBtn.addEventListener('click', handleStart);
-  usernameEl.addEventListener('keydown', e => { if (e.key === 'Enter') handleStart(); });
-
-  async function handleStart() {
-    const raw = usernameEl.value.trim();
-    state.username = raw || 'Anonymous';
-    setSetupStatus('Requesting microphone…', 'info');
-    startBtn.disabled = true;
-    const ok = await requestMic();
-    if (!ok) { startBtn.disabled = false; return; }
-    setSetupStatus('Connecting to server…', 'info');
-    initSocket();
-    $('setup-screen').classList.add('hidden');
-    $('main-app').classList.remove('hidden');
-    $('username-pill').textContent = state.username;
-  }
+  $('start-btn').addEventListener('click', handleStart);
+  $('username-input').addEventListener('keydown', e => { if (e.key === 'Enter') handleStart(); });
+  // custom-ch-input Enter
+  const ci = $('custom-ch-input');
+  if (ci) ci.addEventListener('keydown', e => { if (e.key === 'Enter') handleStart(); });
 }
 
-function setSetupStatus(msg, type) {
+async function handleStart() {
+  const raw      = $('username-input').value.trim();
+  state.username = raw || 'Anonymous';
+
+  const useCustom  = $('custom-ch-chk')?.checked;
+  const customVal  = useCustom ? ($('custom-ch-input')?.value.trim() || '') : '';
+  const channelId  = useCustom ? (customVal || randomChannel()) : randomChannel();
+
+  state.pendingChannel = channelId;
+
+  setSetupStatus('Requesting microphone…', 'text-indigo-500');
+  $('start-btn').disabled = true;
+
+  const ok = await requestMic();
+  if (!ok) { $('start-btn').disabled = false; return; }
+
+  setSetupStatus('Connecting…', 'text-indigo-500');
+  initSocket();
+  $('setup-screen').classList.add('hidden');
+  $('main-app').classList.remove('hidden');
+  $('username-pill').textContent = state.username;
+}
+
+function setSetupStatus(msg, cls = 'text-gray-400') {
   const el = $('setup-status');
   el.textContent = msg;
-  el.className   = `setup-status ${type}`;
+  el.className   = 'text-xs text-center min-h-4 ' + cls;
 }
 
-// ── Mic ───────────────────────────────────────────────────────────────────────
+// ── Microphone ────────────────────────────────────────────────────
 async function requestMic() {
   try {
     state.localStream = await navigator.mediaDevices.getUserMedia({
@@ -176,35 +159,39 @@ async function requestMic() {
     return true;
   } catch (err) {
     let msg = '❌ ' + err.message;
-    if (err.name === 'NotAllowedError')  msg = '❌ Microphone access denied. Allow it in your browser and reload.';
+    if (err.name === 'NotAllowedError')  msg = '❌ Microphone access denied.';
     if (err.name === 'NotFoundError')    msg = '❌ No microphone found.';
     if (err.name === 'NotReadableError') msg = '❌ Mic is in use by another app.';
-    setSetupStatus(msg, 'error');
+    setSetupStatus(msg, 'text-rose-500');
     return false;
   }
 }
 
 function setupAnalyser() {
-  const AudioCtx  = window.AudioContext || window.webkitAudioContext;
-  state.audioCtx  = new AudioCtx();
-  state.analyser  = state.audioCtx.createAnalyser();
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  state.audioCtx = new Ctx();
+  state.analyser = state.audioCtx.createAnalyser();
   state.analyser.fftSize = 512;
-  state.analyser.smoothingTimeConstant = 0.75;
-  const src = state.audioCtx.createMediaStreamSource(state.localStream);
-  src.connect(state.analyser);
+  state.analyser.smoothingTimeConstant = .75;
+  state.audioCtx.createMediaStreamSource(state.localStream).connect(state.analyser);
   animateVU();
 }
 
-// ── Socket ────────────────────────────────────────────────────────────────────
+// ── Socket ────────────────────────────────────────────────────────
 function initSocket() {
   const url = getServerUrl();
-  state.socket = io(url, { rejectUnauthorized: false, reconnectionDelayMax: 5000 });
+  state.socket = io(url, { rejectUnauthorized: false });
 
   state.socket.on('connect', () => {
     setConnStatus(true);
     state.socket.emit('set-username', state.username);
     state.socket.emit('get-channels');
     updateServerBadge(url);
+    // Auto-join pending channel
+    if (state.pendingChannel) {
+      _joinChannel(state.pendingChannel, '');
+      state.pendingChannel = null;
+    }
   });
 
   state.socket.on('disconnect', () => {
@@ -212,22 +199,20 @@ function initSocket() {
     for (const id of [...state.peers.keys()]) removePeer(id);
     state.peerUsernames.clear();
     state.channel = null;
-    updateLCD(); setChannelUIState(false);
+    updateStatus(); setChannelUIState(false);
   });
 
   state.socket.on('reconnect', () => {
     showToast('📡 Reconnected', 'success');
-    if (state.channel) {
-      state.socket.emit('join-channel', { channelId: state.channel, username: state.username });
-    }
+    if (state.channel) state.socket.emit('join-channel', { channelId: state.channel, username: state.username });
   });
 
   state.socket.on('signal', ({ fromId, data }) => handleSignal(fromId, data));
 
   state.socket.on('joined-channel', ({ channelId, existingPeers, isPrivate, messages }) => {
     state.channel = channelId;
-    updateLCD(); setChannelUIState(true);
-    $('chat-ch-badge').textContent = `CH ${channelId}${isPrivate ? ' 🔒' : ''}`;
+    updateStatus(); setChannelUIState(true);
+    $('chat-ch-badge').textContent = 'CH ' + channelId + (isPrivate ? ' 🔒' : '');
     existingPeers.forEach(({ socketId, username }) => {
       state.peerUsernames.set(socketId, username);
       renderUserAdd(socketId, username);
@@ -236,23 +221,23 @@ function initSocket() {
     clearChatPanel();
     messages.forEach(m => appendChatMsg(m, true));
     scrollChat();
-    showToast(`✅ Joined ${isPrivate ? '🔒 ' : ''}channel ${channelId}`, 'success');
-    renderChannelList(state.channelList); // refresh to show "IN" state
+    showToast('✅ On ' + (isPrivate ? '🔒 ' : '') + 'CH ' + channelId, 'success');
+    renderChannelList(state.channelList);
   });
 
   state.socket.on('user-joined', ({ socketId, username }) => {
     state.peerUsernames.set(socketId, username);
     renderUserAdd(socketId, username);
-    appendSystemMsg(`${escHtml(username)} joined`);
+    appendSystemMsg(escHtml(username) + ' joined');
   });
 
   state.socket.on('user-left', ({ socketId }) => {
-    const uname = state.peerUsernames.get(socketId) || 'Someone';
+    const u = state.peerUsernames.get(socketId) || 'Someone';
     removePeer(socketId);
     renderUserRemove(socketId);
     state.peerUsernames.delete(socketId);
     state.missedCandidates.delete(socketId);
-    appendSystemMsg(`${escHtml(uname)} left`);
+    appendSystemMsg(escHtml(u) + ' left');
   });
 
   state.socket.on('user-speaking', ({ socketId, isSpeaking }) => renderSpeaking(socketId, isSpeaking));
@@ -261,7 +246,7 @@ function initSocket() {
   state.socket.on('join-error',    ({ message }) => showToast('❌ ' + message, 'error'));
 }
 
-// ── WebRTC ────────────────────────────────────────────────────────────────────
+// ── WebRTC ────────────────────────────────────────────────────────
 function createPeer(peerId, isInitiator) {
   if (state.peers.has(peerId)) return state.peers.get(peerId);
   const pc = new RTCPeerConnection(ICE_CFG);
@@ -273,36 +258,17 @@ function createPeer(peerId, isInitiator) {
 
   pc.ontrack = ({ streams }) => {
     if (!streams[0]) return;
-    let audio = state.peerAudios.get(peerId);
-    if (!audio) {
-      audio = document.createElement('audio');
-      audio.autoplay = true; audio.style.display = 'none';
-      document.body.appendChild(audio);
-      state.peerAudios.set(peerId, audio);
-    }
-    audio.srcObject = streams[0];
-    audio.muted = state.isOutgoingMuted;
+    let a = state.peerAudios.get(peerId);
+    if (!a) { a = document.createElement('audio'); a.autoplay = true; a.style.display = 'none'; document.body.appendChild(a); state.peerAudios.set(peerId, a); }
+    a.srcObject = streams[0]; a.muted = state.isOutgoingMuted;
   };
 
   pc.onicecandidate = ({ candidate }) => {
-    if (candidate)
-      state.socket.emit('signal', { targetId: peerId, data: { type: 'ice-candidate', payload: candidate } });
+    if (candidate) state.socket.emit('signal', { targetId: peerId, data: { type: 'ice-candidate', payload: candidate } });
   };
 
   pc.onconnectionstatechange = () => {
-    const s = pc.connectionState;
-    console.log(`[WebRTC] peer ${peerId.slice(0,6)}: ${s}`);
-    if (s === 'failed') {
-      console.warn('Connection failed — retrying with restartIce');
-      pc.restartIce();
-      setTimeout(() => {
-        if (pc.connectionState === 'failed') removePeer(peerId);
-      }, 8000);
-    }
-  };
-
-  pc.oniceconnectionstatechange = () => {
-    console.log(`[ICE] peer ${peerId.slice(0,6)}: ${pc.iceConnectionState}`);
+    if (pc.connectionState === 'failed') { pc.restartIce(); setTimeout(() => { if (pc.connectionState === 'failed') removePeer(peerId); }, 8000); }
   };
 
   if (isInitiator) {
@@ -311,7 +277,7 @@ function createPeer(peerId, isInitiator) {
         const offer = await pc.createOffer({ offerToReceiveAudio: true });
         await pc.setLocalDescription(offer);
         state.socket.emit('signal', { targetId: peerId, data: { type: 'offer', payload: pc.localDescription } });
-      } catch (e) { console.error('createOffer', e); }
+      } catch (e) { console.error('offer', e); }
     };
   }
   return pc;
@@ -322,40 +288,33 @@ async function handleSignal(fromId, { type, payload }) {
     if (type === 'offer') {
       const pc = createPeer(fromId, false);
       await pc.setRemoteDescription(new RTCSessionDescription(payload));
-      for (const c of (state.missedCandidates.get(fromId) || []))
-        await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+      for (const c of (state.missedCandidates.get(fromId) || [])) await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
       state.missedCandidates.set(fromId, []);
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
+      const ans = await pc.createAnswer();
+      await pc.setLocalDescription(ans);
       state.socket.emit('signal', { targetId: fromId, data: { type: 'answer', payload: pc.localDescription } });
     } else if (type === 'answer') {
       const pc = state.peers.get(fromId);
       if (pc && pc.signalingState === 'have-local-offer') {
         await pc.setRemoteDescription(new RTCSessionDescription(payload));
-        for (const c of (state.missedCandidates.get(fromId) || []))
-          await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+        for (const c of (state.missedCandidates.get(fromId) || [])) await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
         state.missedCandidates.set(fromId, []);
       }
     } else if (type === 'ice-candidate') {
       const pc = state.peers.get(fromId);
       if (!pc || !payload) return;
-      if (pc.remoteDescription) {
-        await pc.addIceCandidate(new RTCIceCandidate(payload)).catch(() => {});
-      } else {
-        const buf = state.missedCandidates.get(fromId) || [];
-        buf.push(payload); state.missedCandidates.set(fromId, buf);
-      }
+      if (pc.remoteDescription) await pc.addIceCandidate(new RTCIceCandidate(payload)).catch(() => {});
+      else { const buf = state.missedCandidates.get(fromId) || []; buf.push(payload); state.missedCandidates.set(fromId, buf); }
     }
-  } catch (err) { console.warn('Signal error:', err); }
+  } catch (e) { console.warn('signal', e); }
 }
 
-function removePeer(peerId) {
-  const pc = state.peers.get(peerId); if (pc) { pc.close(); state.peers.delete(peerId); }
-  const audio = state.peerAudios.get(peerId);
-  if (audio) { audio.srcObject = null; audio.remove(); state.peerAudios.delete(peerId); }
+function removePeer(id) {
+  const pc = state.peers.get(id); if (pc) { pc.close(); state.peers.delete(id); }
+  const a  = state.peerAudios.get(id); if (a) { a.srcObject = null; a.remove(); state.peerAudios.delete(id); }
 }
 
-// ── PTT / Toggle ──────────────────────────────────────────────────────────────
+// ── PTT ───────────────────────────────────────────────────────────
 function wirePTT() {
   const btn = $('ptt-btn');
   btn.addEventListener('mousedown',  e => { e.preventDefault(); onPress(); });
@@ -364,25 +323,17 @@ function wirePTT() {
   btn.addEventListener('touchstart', e => { e.preventDefault(); onPress(); },   { passive: false });
   btn.addEventListener('touchend',   e => { e.preventDefault(); onRelease(); }, { passive: false });
   btn.addEventListener('touchcancel',() => { if (state.mode === 'ptt') onRelease(); });
-  document.addEventListener('keydown', e => {
-    if (e.code === 'Space' && !e.repeat && !isTypingTarget(e.target)) { e.preventDefault(); onPress(); }
-  });
-  document.addEventListener('keyup', e => {
-    if (e.code === 'Space' && !isTypingTarget(e.target)) { e.preventDefault(); onRelease(); }
-  });
+  document.addEventListener('keydown', e => { if (e.code === 'Space' && !e.repeat && !isTyping(e.target)) { e.preventDefault(); onPress(); } });
+  document.addEventListener('keyup',   e => { if (e.code === 'Space' && !isTyping(e.target)) { e.preventDefault(); onRelease(); } });
 }
 
-function isTypingTarget(el) {
-  return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable;
-}
+function isTyping(el) { return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable; }
 
 function onPress() {
   if (!state.channel) { showToast('⚠️ Join a channel first', 'warning'); return; }
   state.mode === 'ptt' ? startTX() : (state.isTransmitting ? stopTX() : startTX());
 }
-function onRelease() {
-  if (state.mode === 'ptt' && state.isTransmitting) stopTX();
-}
+function onRelease() { if (state.mode === 'ptt' && state.isTransmitting) stopTX(); }
 
 function startTX() {
   if (state.isTransmitting) return;
@@ -390,7 +341,7 @@ function startTX() {
   state.isTransmitting = true;
   state.localStream?.getAudioTracks().forEach(t => { t.enabled = true; });
   $('ptt-btn').classList.add('transmitting');
-  $('ptt-label').textContent = state.mode === 'ptt' ? 'TRANSMITTING…' : 'ON AIR — CLICK TO STOP';
+  $('ptt-label').textContent = state.mode === 'ptt' ? 'TRANSMITTING…' : 'ON AIR';
   $('lcd-tx').textContent    = '● TX';
   $('lcd-signal').classList.add('active');
 }
@@ -408,82 +359,68 @@ function stopTX() {
   $('lcd-signal').classList.remove('active');
 }
 
-// ── Mode Buttons ──────────────────────────────────────────────────────────────
+// ── Modes ─────────────────────────────────────────────────────────
 function wireModeButtons() {
   $('ptt-mode-btn').addEventListener('click', () => setMode('ptt'));
   $('tog-mode-btn').addEventListener('click', () => setMode('toggle'));
-  $('mute-mic-btn').addEventListener('click', toggleOutputMute);
+  $('mute-mic-btn').addEventListener('click', toggleMute);
 }
 
-function setMode(mode) {
+function setMode(m) {
   if (state.isTransmitting) stopTX();
-  state.mode = mode;
-  $('ptt-mode-btn').classList.toggle('active', mode === 'ptt');
-  $('tog-mode-btn').classList.toggle('active', mode === 'toggle');
-  $('lcd-mode').textContent  = mode === 'ptt' ? 'PTT' : 'TOG';
-  $('ptt-label').textContent = mode === 'ptt' ? 'PUSH TO TALK' : 'CLICK TO TALK';
-  $('ptt-hint').innerHTML    = mode === 'ptt'
-    ? 'Hold <kbd>Space</kbd> or press &amp; hold the button'
-    : 'Click once to open mic — click again to close';
+  state.mode = m;
+  $('ptt-mode-btn').classList.toggle('active', m === 'ptt');
+  $('tog-mode-btn').classList.toggle('active', m !== 'ptt');
+  $('lcd-mode').textContent  = m === 'ptt' ? 'PTT' : 'TOG';
+  $('ptt-label').textContent = m === 'ptt' ? 'PUSH TO TALK' : 'CLICK TO TALK';
+  $('ptt-hint').innerHTML    = m === 'ptt'
+    ? 'Hold <kbd class="px-1.5 py-0.5 rounded text-[10px] bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 font-mono text-gray-500">Space</kbd> or hold the button'
+    : 'Tap once to open mic — tap again to close';
 }
 
-function toggleOutputMute() {
+function toggleMute() {
   state.isOutgoingMuted = !state.isOutgoingMuted;
   state.peerAudios.forEach(a => { a.muted = state.isOutgoingMuted; });
-  $('mute-mic-btn').querySelector('#mute-icon')?.setAttribute('class', '');
-  $('mute-mic-btn').classList.toggle('active', state.isOutgoingMuted);
-  // Swap icon
   const btn = $('mute-mic-btn');
-  btn.innerHTML = state.isOutgoingMuted
-    ? `<svg viewBox="0 0 20 20" fill="currentColor" width="16" id="mute-icon"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0 9.972 9.972 0 010 14.142 1 1 0 01-1.414-1.414 7.971 7.971 0 000-11.314 1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd"/><line x1="3" y1="3" x2="17" y2="17" stroke="currentColor" stroke-width="2"/></svg>`
-    : `<svg viewBox="0 0 20 20" fill="currentColor" width="16" id="mute-icon"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd"/></svg>`;
+  btn.classList.toggle('text-amber-500', state.isOutgoingMuted);
+  btn.classList.toggle('bg-amber-50',    state.isOutgoingMuted);
+  btn.classList.toggle('dark:bg-amber-900/20', state.isOutgoingMuted);
   showToast(state.isOutgoingMuted ? '🔇 Audio muted' : '🔊 Audio on', 'info', 2000);
 }
 
-// ── Channel Controls ──────────────────────────────────────────────────────────
+// ── Channel Controls ──────────────────────────────────────────────
 function wireChannelControls() {
-  $('join-btn').addEventListener('click',  doHost);
-  $('freq-join-btn').addEventListener('click', doJoinFreq);
+  $('join-btn').addEventListener('click', doHost);
+  $('freq-join-btn').addEventListener('click', doJoin);
   $('leave-btn').addEventListener('click', doLeave);
   $('scan-btn').addEventListener('click',  toggleScan);
   $('refresh-btn').addEventListener('click', () => state.socket?.emit('get-channels'));
-  $('ch-input').addEventListener('keydown', e => {
-    if (e.key === 'Enter') doJoinFreq(); // Enter = join by default
-  });
+  $('ch-input').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
   $('private-chk').addEventListener('change', () => {
     $('pw-row').classList.toggle('hidden', !$('private-chk').checked);
   });
 }
 
-// HOST = create a new frequency/channel
 function doHost() {
-  const chId = $('ch-input').value.trim();
-  if (!chId) { showToast('⚠️ Enter a frequency or channel name', 'warning'); return; }
-  if (!state.socket) { showToast('⚠️ Not connected to server yet', 'warning'); return; }
-  if (!state.socket.connected) { showToast('⚠️ Server disconnected — please wait', 'warning'); return; }
-  const isPrivate = $('private-chk').checked;
-  const pw        = isPrivate ? $('pw-input').value : '';
-  _joinChannel(chId, pw);
+  const ch = $('ch-input').value.trim() || randomChannel();
+  $('ch-input').value = ch;
+  if (!state.socket?.connected) { showToast('⚠️ Not connected', 'warning'); return; }
+  _joinChannel(ch, $('private-chk').checked ? $('pw-input').value : '');
 }
 
-// JOIN = tune into an existing frequency directly
-function doJoinFreq() {
-  const chId = $('ch-input').value.trim();
-  if (!chId) { showToast('⚠️ Enter a frequency to join', 'warning'); return; }
-  if (!state.socket) { showToast('⚠️ Not connected to server yet', 'warning'); return; }
-  if (!state.socket.connected) { showToast('⚠️ Server disconnected — please wait', 'warning'); return; }
-  const pw = $('private-chk').checked ? $('pw-input').value : '';
-  _joinChannel(chId, pw);
+function doJoin() {
+  const ch = $('ch-input').value.trim();
+  if (!ch) { showToast('⚠️ Enter a channel or frequency', 'warning'); return; }
+  if (!state.socket?.connected) { showToast('⚠️ Not connected', 'warning'); return; }
+  _joinChannel(ch, $('private-chk').checked ? $('pw-input').value : '');
 }
 
-// Internal join used by both HOST and list JOIN buttons
 function _joinChannel(chId, pw = '') {
-  if (!state.socket?.connected) { showToast('⚠️ Not connected to server', 'warning'); return; }
+  if (!state.socket?.connected) { showToast('⚠️ Not connected', 'warning'); return; }
   if (state.isTransmitting) stopTX();
   for (const id of [...state.peers.keys()]) removePeer(id);
-  state.peerUsernames.clear();
-  state.missedCandidates.clear();
-  renderUsersListEmpty();
+  state.peerUsernames.clear(); state.missedCandidates.clear();
+  renderUsersEmpty();
   state.socket.emit('join-channel', { channelId: chId, password: pw, username: state.username });
 }
 
@@ -491,36 +428,31 @@ function doLeave() {
   if (state.isTransmitting) stopTX();
   state.socket?.emit('leave-channel');
   for (const id of [...state.peers.keys()]) removePeer(id);
-  state.peerUsernames.clear();
-  state.missedCandidates.clear();
+  state.peerUsernames.clear(); state.missedCandidates.clear();
   state.channel = null;
-  renderUsersListEmpty();
-  updateLCD(); setChannelUIState(false);
-  clearChatPanel();
+  renderUsersEmpty(); updateStatus(); setChannelUIState(false); clearChatPanel();
   renderChannelList(state.channelList);
   showToast('👋 Left the channel', 'info', 2000);
 }
 
-// ── Scanner ───────────────────────────────────────────────────────────────────
-function toggleScan() {
-  state.scanActive ? stopScan() : startScan();
-}
+// ── Scanner ───────────────────────────────────────────────────────
+function toggleScan() { state.scanActive ? stopScan() : startScan(); }
 
 async function startScan() {
-  const active = state.channelList.filter(ch => ch.userCount > 0);
-  if (active.length === 0) { showToast('📻 No active channels to scan', 'info'); return; }
+  const active = state.channelList.filter(c => c.userCount > 0);
+  if (!active.length) { showToast('📻 No active channels', 'info'); return; }
   state.scanActive = true;
-  $('scan-btn').textContent = '⏹ STOP';
-  $('scan-btn').classList.add('scanning');
+  $('scan-btn').textContent = '⏹ Stop';
+  $('scan-btn').classList.add('border-amber-500');
   for (const ch of active) {
     if (!state.scanActive) break;
-    $('lcd-status').textContent  = 'SCANNING…';
-    $('lcd-channel').textContent = String(ch.id).padStart(2, '0');
+    $('lcd-status').textContent = 'SCAN…';
+    $('lcd-channel').textContent = ch.id;
     await sleep(350);
     if (!state.scanActive) break;
     $('ch-input').value = ch.id;
-    _joinChannel(ch.id);
-    showToast(`📡 Scan → Channel ${ch.id}`, 'success');
+    _joinChannel(ch.id, '');
+    showToast('📡 Tuned → CH ' + ch.id, 'success');
     break;
   }
   stopScan();
@@ -528,23 +460,21 @@ async function startScan() {
 
 function stopScan() {
   state.scanActive = false;
-  $('scan-btn').textContent = '⟳ SCAN';
-  $('scan-btn').classList.remove('scanning');
-  if (!state.channel) updateLCD();
+  $('scan-btn').textContent = '⟳ Scan';
+  $('scan-btn').classList.remove('border-amber-500');
+  if (!state.channel) updateStatus();
 }
 
-// ── Chat ──────────────────────────────────────────────────────────────────────
+// ── Chat ──────────────────────────────────────────────────────────
 function wireChat() {
   $('chat-send-btn').addEventListener('click', sendChat);
-  $('chat-input').addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
-  });
+  $('chat-input').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } });
 }
 function sendChat() {
   const inp = $('chat-input');
-  const text = inp.value.trim();
-  if (!text || !state.channel) return;
-  state.socket?.emit('chat-message', { text });
+  const txt = inp.value.trim();
+  if (!txt || !state.channel) return;
+  state.socket?.emit('chat-message', { text: txt });
   inp.value = '';
 }
 function appendChatMsg(msg, isHistory = false) {
@@ -554,173 +484,169 @@ function appendChatMsg(msg, isHistory = false) {
   const isOwn = msg.socketId === state.socket?.id;
   const time  = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const div   = document.createElement('div');
-  div.className = `chat-msg ${isOwn ? 'own' : 'other'}`;
+  div.className = 'flex ' + (isOwn ? 'justify-end' : 'justify-start') + ' msg-in';
   div.innerHTML = `
-    <span class="msg-username">${escHtml(msg.username)}</span>
-    <span class="msg-text">${escHtml(msg.text)}</span>
-    <span class="msg-time">${time}</span>
-  `;
+    <div class="max-w-[78%] flex flex-col gap-1 ${isOwn ? 'items-end' : 'items-start'}">
+      <span class="text-[10px] text-gray-400 px-1">${escHtml(msg.username)}</span>
+      <div class="${isOwn
+        ? 'bg-indigo-500 text-white rounded-2xl rounded-br-sm shadow-md shadow-indigo-500/20'
+        : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-2xl rounded-bl-sm border border-gray-200 dark:border-gray-700'} px-4 py-2.5 text-sm leading-relaxed">
+        ${escHtml(msg.text)}
+      </div>
+      <span class="text-[10px] text-gray-300 dark:text-gray-600 px-1">${time}</span>
+    </div>`;
   box.appendChild(div);
   if (!isHistory) scrollChat();
-  // Badge on mobile if chat tab isn't active
-  if (!isHistory) {
+  // Badge
+  if (!isHistory && !isOwn) {
     const chatPanel = $('panel-chat');
-    if (chatPanel && chatPanel.classList.contains('mobile-hidden') && !isOwn) {
-      const badge = $('chat-badge');
-      if (badge) {
-        const current = parseInt(badge.textContent) || 0;
-        badge.textContent = current + 1;
-        badge.classList.remove('hidden');
-      }
+    if (chatPanel?.classList.contains('mobile-hidden')) {
+      const b = $('chat-badge');
+      if (b) { b.textContent = (parseInt(b.textContent) || 0) + 1; b.classList.remove('hidden'); }
     }
   }
 }
 function appendSystemMsg(html) {
   const box = $('chat-messages');
   const div = document.createElement('div');
-  div.className = 'chat-system';
-  div.innerHTML = html;
+  div.className = 'flex items-center gap-3 text-[11px] text-gray-400 my-1 msg-in';
+  div.innerHTML = `<div class="flex-1 h-px bg-gray-100 dark:bg-gray-800"></div><span>${html}</span><div class="flex-1 h-px bg-gray-100 dark:bg-gray-800"></div>`;
   box.appendChild(div);
   scrollChat();
 }
 function clearChatPanel() {
   $('chat-messages').innerHTML = `
-    <div class="chat-welcome">
-      <div class="cw-icon"><svg viewBox="0 0 48 48" fill="none" width="52"><circle cx="24" cy="24" r="22" stroke="rgba(129,140,248,.3)" stroke-width="1.5"/><path d="M12 24c0-6.627 5.373-12 12-12s12 5.373 12 12-5.373 12-12 12H12l2-4c-1.245-2.18-2-4.73-2-8z" fill="rgba(129,140,248,.12)" stroke="rgba(129,140,248,.4)" stroke-width="1.5"/><circle cx="18" cy="24" r="1.5" fill="rgba(129,140,248,.7)"/><circle cx="24" cy="24" r="1.5" fill="rgba(129,140,248,.7)"/><circle cx="30" cy="24" r="1.5" fill="rgba(129,140,248,.7)"/></svg></div>
-      <p class="cw-title">No messages yet</p>
-      <p class="cw-sub">Join a channel to chat</p>
+    <div class="chat-welcome flex flex-col items-center justify-center h-full gap-3 text-center py-12">
+      <div class="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center">
+        <svg viewBox="0 0 20 20" fill="currentColor" class="w-7 h-7 text-indigo-300 dark:text-indigo-600"><path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7z" clip-rule="evenodd"/></svg>
+      </div>
+      <p class="text-sm font-semibold text-gray-400">No messages yet</p>
+      <p class="text-xs text-gray-300 dark:text-gray-600">Join a channel to start chatting</p>
     </div>`;
   $('chat-ch-badge').textContent = 'No channel';
 }
-function scrollChat() {
-  const box = $('chat-messages');
-  box.scrollTop = box.scrollHeight;
-}
+function scrollChat() { const b = $('chat-messages'); b.scrollTop = b.scrollHeight; }
 
-// ── Server Switch ─────────────────────────────────────────────────────────────
+// ── Server switch ─────────────────────────────────────────────────
 function wireServerSwitch() {
-  const btn = $('server-switch-btn');
-  if (!btn) return;
-  btn.addEventListener('click', () => {
-    const input = $('server-url-input');
-    const panel = $('server-panel');
-    panel.classList.toggle('hidden');
-    if (!panel.classList.contains('hidden')) {
-      input.value = localStorage.getItem('wt_server') || window.location.origin;
-    }
+  $('server-switch-btn')?.addEventListener('click', () => {
+    const p = $('server-panel');
+    p.classList.toggle('hidden');
+    if (!p.classList.contains('hidden'))
+      $('server-url-input').value = localStorage.getItem('wt_server') || '';
   });
   $('server-save-btn')?.addEventListener('click', () => {
-    const val = $('server-url-input').value.trim();
-    if (val) {
-      localStorage.setItem('wt_server', val);
-      showToast('Server URL saved — reload to connect', 'info', 4000);
-      $('server-panel').classList.add('hidden');
-    }
+    const v = $('server-url-input').value.trim();
+    if (v) { localStorage.setItem('wt_server', v); showToast('Saved — reload to connect', 'info', 4000); }
+    $('server-panel').classList.add('hidden');
   });
   $('server-reset-btn')?.addEventListener('click', () => {
     localStorage.removeItem('wt_server');
-    showToast('Reset — reload to reconnect', 'info');
+    showToast('Reset', 'info');
     $('server-panel').classList.add('hidden');
   });
 }
 
 function updateServerBadge(url) {
-  const badge = $('server-badge');
-  if (!badge) return;
-  const isLocal = url.includes('localhost') || url.includes('127.0.0.1') || url.match(/192\.168\.|10\.\d+\.\d+\.|172\./);
-  badge.textContent = isLocal ? 'LAN' : 'ONLINE';
-  badge.className   = `server-mode-badge ${isLocal ? 'badge-lan' : 'badge-online'}`;
+  const b = $('server-badge'); if (!b) return;
+  const isLocal = /localhost|127\.0\.0\.1|192\.168\.|10\.\d+\.\d+|172\./.test(url);
+  b.textContent = isLocal ? 'LAN' : 'ONLINE';
+  b.className = isLocal
+    ? 'text-[9px] font-bold tracking-widest px-2 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-900/40 text-cyan-600 dark:text-cyan-400 border border-cyan-200 dark:border-cyan-800'
+    : 'text-[9px] font-bold tracking-widest px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800';
 }
 
-// ── UI Renderers ──────────────────────────────────────────────────────────────
-function setConnStatus(connected) {
-  $('conn-dot').className     = `status-dot ${connected ? 'connected' : 'disconnected'}`;
-  $('conn-label').textContent = connected ? 'ONLINE' : 'OFFLINE';
+// ── UI Renderers ──────────────────────────────────────────────────
+function setConnStatus(on) {
+  const dot = $('conn-dot'); const lbl = $('conn-label');
+  dot.className = 'w-2 h-2 rounded-full ' + (on ? 'status-dot-connected' : 'status-dot-disconnected');
+  lbl.textContent = on ? 'ONLINE' : 'OFFLINE';
 }
-function updateLCD() {
+
+function updateStatus() {
   const ch = state.channel;
-  $('lcd-channel').textContent   = ch ? String(ch).padStart(2, '0') : '--';
-  $('lcd-status').textContent    = ch ? `ON CH ${ch}` : 'STANDBY';
+  $('lcd-channel').textContent   = ch ? String(ch) : '--';
+  $('lcd-status').textContent    = ch ? 'ON CH ' + ch : 'STANDBY';
   $('lcd-usercount').textContent = ch ? state.peers.size + 1 : 0;
 }
-function setChannelUIState(inChannel) {
-  $('ptt-btn').disabled       = !inChannel;
-  $('leave-btn').disabled     = !inChannel;
-  $('chat-input').disabled    = !inChannel;
-  $('chat-send-btn').disabled = !inChannel;
+
+function setChannelUIState(inCh) {
+  $('ptt-btn').disabled       = !inCh;
+  $('leave-btn').disabled     = !inCh;
+  $('chat-input').disabled    = !inCh;
+  $('chat-send-btn').disabled = !inCh;
 }
-function renderUserAdd(socketId, username) {
-  const list  = $('users-list');
-  const empty = list.querySelector('.list-empty');
+
+function renderUserAdd(sid, username) {
+  const list = $('users-list');
+  const empty = list.querySelector('.users-empty');
   if (empty) empty.remove();
-  if ($(`user-${socketId}`)) return;
-  const initial = (username[0] || '?').toUpperCase();
-  const div     = document.createElement('div');
-  div.id        = `user-${socketId}`;
-  div.className = 'user-item';
+  if ($('u-' + sid)) return;
+  const init = (username[0] || '?').toUpperCase();
+  const div  = document.createElement('div');
+  div.id        = 'u-' + sid;
+  div.className = 'flex items-center gap-3 p-2.5 rounded-2xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700/60 transition-all';
   div.innerHTML = `
-    <div class="user-avatar">${escHtml(initial)}</div>
-    <span class="user-name">${escHtml(username)}</span>
-    <span class="user-mic" aria-label="speaking">🎙️</span>
-  `;
+    <div class="user-avatar-el w-9 h-9 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 border-2 border-transparent flex items-center justify-center text-sm font-bold text-white flex-shrink-0 transition-all">
+      ${escHtml(init)}
+    </div>
+    <span class="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200 truncate">${escHtml(username)}</span>
+    <span class="user-mic-icon text-sm opacity-0 transition-opacity">🎙️</span>`;
   list.appendChild(div);
-  updateLCD();
+  updateStatus();
 }
-function renderUserRemove(socketId) {
-  const el = $(`user-${socketId}`);
-  if (el) el.remove();
-  if (!$('users-list').querySelector('.user-item')) renderUsersListEmpty();
-  updateLCD();
+
+function renderUserRemove(sid) {
+  $('u-' + sid)?.remove();
+  if (!$('users-list').querySelector('[id^="u-"]'))
+    renderUsersEmpty();
+  updateStatus();
 }
-function renderUsersListEmpty() {
-  $('users-list').innerHTML = '<div class="list-empty">Join a channel to see users</div>';
+
+function renderUsersEmpty() {
+  $('users-list').innerHTML = '<p class="users-empty text-xs text-gray-400 italic">Join a channel to see users</p>';
 }
-function renderSpeaking(socketId, isSpeaking) {
-  const el = $(`user-${socketId}`);
-  if (el) el.classList.toggle('speaking', isSpeaking);
+
+function renderSpeaking(sid, isSpeaking) {
+  const el = $('u-' + sid); if (!el) return;
+  el.classList.toggle('user-item-speaking', isSpeaking);
+  const mic = el.querySelector('.user-mic-icon');
+  if (mic) mic.style.opacity = isSpeaking ? '1' : '0';
 }
 
 function renderChannelList(channels) {
-  const list = $('ch-list');
-  list.innerHTML = '';
-
-  if (!channels || channels.length === 0) {
-    list.innerHTML = '<div class="list-empty">No active frequencies yet</div>';
+  const list = $('ch-list'); list.innerHTML = '';
+  if (!channels || !channels.length) {
+    list.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-8">No active frequencies yet</p>';
     return;
   }
-
   channels.forEach(ch => {
     const isCurrent = state.channel === ch.id;
-    const names     = (ch.users || []).slice(0, 3).map(escHtml).join(', ') || 'empty';
-
-    const item      = document.createElement('div');
-    item.className  = 'ch-item' + (isCurrent ? ' current' : '') + (ch.hasActivity ? ' has-activity' : '');
-    item.title      = isCurrent ? 'Currently on this frequency' : 'Tap to tune into ' + ch.id;
-
-    item.innerHTML = `
-      <div class="ch-item-info">
-        <div class="ch-item-top">
-          <span class="ch-number">${escHtml(String(ch.id))} <small style="font-size:9px;color:var(--t3);font-family:var(--font);font-weight:400">MHz</small></span>
-          ${ch.hasActivity ? '<span class="ch-dot"></span>' : ''}
-          ${isCurrent ? '<span class="ch-on-air">ON AIR</span>' : ''}
+    const names = (ch.users || []).slice(0, 3).map(escHtml).join(', ') || 'empty';
+    const card = document.createElement('div');
+    card.className = 'ch-card flex items-center gap-3 p-3.5 rounded-2xl ' +
+      (isCurrent
+        ? 'bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700'
+        : 'bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700/60 hover:border-indigo-200 dark:hover:border-indigo-700');
+    card.innerHTML = `
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2">
+          <span class="font-bold text-sm font-mono ${isCurrent ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-800 dark:text-gray-200'}">${escHtml(String(ch.id))}</span>
+          ${ch.hasActivity ? '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-slow"></span>' : ''}
+          ${isCurrent ? '<span class="text-[9px] font-bold tracking-widest px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700">ON AIR</span>' : ''}
         </div>
-        <span class="ch-usernames">${ch.userCount} user${ch.userCount !== 1 ? 's' : ''} · ${names}</span>
-      </div>`;
+        <p class="text-xs text-gray-400 truncate mt-0.5">${ch.userCount} user${ch.userCount !== 1 ? 's' : ''} · ${names}</p>
+      </div>
+      ${!isCurrent ? '<svg viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-gray-300 dark:text-gray-600 flex-shrink-0"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>' : ''}`;
 
-    // Clicking the card tunes in — no separate button
     if (!isCurrent) {
-      item.addEventListener('click', function () {
+      card.addEventListener('click', () => {
         $('ch-input').value = ch.id;
         _joinChannel(ch.id, '');
       });
     }
-
-    list.appendChild(item);
+    list.appendChild(card);
   });
 }
-
-window.quickJoin = function(channelId) {
-  _joinChannel(String(channelId), '');
-};
 
 window.setMode = setMode;
