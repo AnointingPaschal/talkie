@@ -394,6 +394,19 @@ setInterval(() => {
     if (ch.hasActivity && ch.lastActivity < t) ch.hasActivity = false;
 }, 5000);
 
+// ── Keep-alive self-ping (prevents Render free tier spin-down) ────
+const RENDER_URL = process.env.RENDER_EXTERNAL_URL;
+if (RENDER_URL) {
+  const pingModule = useHttps ? require('https') : require('http');
+  setInterval(() => {
+    const url = `https://${RENDER_URL}/api/health`;
+    try {
+      require('https').get(url, res => res.resume()).on('error', () => {});
+    } catch (_) {}
+  }, 10 * 60 * 1000); // every 10 minutes
+  console.log(`🏓 Keep-alive self-ping active → https://${RENDER_URL}/api/health`);
+}
+
 // ── Start ─────────────────────────────────────────────────────────
 server.listen(PORT, '0.0.0.0', () => {
   const nets = os.networkInterfaces();

@@ -971,3 +971,24 @@ function setChannelUIState(inCh) {
 }
 window.setMode     = setMode;
 window.hostRescan  = hostRescanRoster;
+
+
+// ── Keep-alive ping (prevents Render free tier spin-down) ─────────
+(function keepAlive() {
+  // Only ping when running on a remote server (not LAN/localhost)
+  const url = window.location.origin;
+  const isRemote = !url.includes('localhost') && !url.match(/192\.168\.|10\.\d+|172\./);
+  if (!isRemote) return;
+
+  function ping() {
+    fetch('/api/health', { method: 'GET', cache: 'no-store' }).catch(() => {});
+  }
+
+  // Ping every 10 minutes
+  setInterval(ping, 10 * 60 * 1000);
+
+  // Also ping when tab becomes visible again after being hidden
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') ping();
+  });
+})();
