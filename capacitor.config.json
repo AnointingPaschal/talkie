@@ -1,0 +1,26 @@
+{
+  "appId": "com.walkietalkie.app",
+  "appName": "WalkieTalkie",
+  "webDir": "public",
+  "server": {
+    "url": "https://talkie-pnv2.onrender.com",
+    "cleartext": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 0,
+      "backgroundColor": "#060810",
+      "showSpinner": false
+    }
+  },
+  "android": {
+    "backgroundColor": "#060810",
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  },
+  "ios": {
+    "backgroundColor": "#060810",
+    "contentInset": "automatic"
+  }
+}
