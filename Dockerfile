@@ -2,13 +2,15 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install dependencies first (layer cache)
 COPY package*.json ./
 RUN npm install --omit=dev
 
-# Copy source
 COPY server.js .
 COPY public/ ./public/
+
+# Render handles SSL — run plain HTTP internally
+ENV NO_HTTPS=true
+ENV NODE_ENV=production
 
 EXPOSE 3000
 
