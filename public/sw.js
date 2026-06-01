@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = 'stalk-v5-' + Date.now().toString(36).slice(-4);
+const VERSION = 'stalk-v6';
 const ASSETS  = [
   '/', '/index.html', '/style.css', '/app.js',
   '/logo.svg', '/manifest.json',
