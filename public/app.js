@@ -193,17 +193,21 @@ function setupAnalyser() {
 // ── Socket ────────────────────────────────────────────────────────
 async function initSocket() {
   const url = await detectServer();
+  // Show connecting state immediately
+  setConnStatus('connecting');
+
   state.socket = io(url, {
-    rejectUnauthorized: false,
-    transports: ['websocket'],  // match server — no polling fallback
-    reconnectionDelay: 1000,
-    reconnectionDelayMax: 5000,
-    reconnectionAttempts: Infinity,
-    timeout: 10000,
+    rejectUnauthorized:    false,
+    transports:            ['websocket', 'polling'], // polling fallback for restrictive networks
+    upgrade:               true,
+    reconnectionDelay:     1000,
+    reconnectionDelayMax:  5000,
+    reconnectionAttempts:  Infinity,
+    timeout:               20000,
   });
 
   state.socket.on('connect', () => {
-    setConnStatus(true);
+    setConnStatus('online');
     state.socket.emit('set-username', state.username);
     state.socket.emit('get-channels');
     updateServerBadge(url);
@@ -213,20 +217,32 @@ async function initSocket() {
   });
 
   state.socket.on('disconnect', () => {
-    setConnStatus(false);
+    setConnStatus('offline');
     for (const id of [...state.peers.keys()]) removePeer(id);
     state.peerUsernames.clear();
     const prevCh = state.channel;
     state.channel = null;
     updateStatus(); setChannelUIState(false);
-    if (state.autoRescan && prevCh) {
-      scheduleRescan(prevCh);
-    }
+    if (state.autoRescan && prevCh) scheduleRescan(prevCh);
   });
 
-  state.socket.on('reconnect', () => {
+  state.socket.on('reconnecting', attempt => {
+    setConnStatus('connecting');
+    if (attempt > 1) showToast(`🔄 Reconnecting… (${attempt})`, 'warning', 2000);
+  });
+
+  state.socket.on('connect_error', err => {
+    setConnStatus('offline');
+    console.warn('connect_error:', err.message);
+  });
+
+  state.socket.io.on('reconnect', () => {
     showToast('📡 Reconnected', 'success');
     if (state.channel) state.socket.emit('join-channel', { channelId: state.channel, username: state.username });
+  });
+
+  state.socket.io.on('reconnect_attempt', attempt => {
+    setConnStatus('connecting');
   });
 
   state.socket.on('signal',         ({ fromId, data }) => handleSignal(fromId, data));
@@ -960,9 +976,23 @@ function updateServerBadge(url) {
 }
 
 // ── UI helpers ────────────────────────────────────────────────────
-function setConnStatus(on) {
-  $('conn-dot').className  = 'w-2 h-2 rounded-full ' + (on ? 'status-dot-connected' : 'status-dot-disconnected');
-  $('conn-label').textContent = on ? 'ONLINE' : 'OFFLINE';
+function setConnStatus(state) {
+  const dot = $('conn-dot');
+  const lbl = $('conn-label');
+  if (state === 'online') {
+    dot.className     = 'w-2 h-2 rounded-full status-dot-connected';
+    lbl.textContent   = 'ONLINE';
+    lbl.className     = 'text-[10px] font-bold tracking-widest text-emerald-500';
+  } else if (state === 'offline') {
+    dot.className     = 'w-2 h-2 rounded-full status-dot-disconnected';
+    lbl.textContent   = 'OFFLINE';
+    lbl.className     = 'text-[10px] font-bold tracking-widest text-rose-400';
+  } else {
+    // connecting
+    dot.className     = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
+    lbl.textContent   = 'CONNECTING';
+    lbl.className     = 'text-[10px] font-bold tracking-widest text-amber-400';
+  }
 }
 function updateStatus() {
   const ch = state.channel;

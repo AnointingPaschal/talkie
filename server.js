@@ -25,12 +25,10 @@ const PORT = process.env.PORT || 3000;
 
 const io = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] },
-  pingTimeout:        30000,
-  pingInterval:       10000,
-  maxHttpBufferSize:  1e6,
-  // Force WebSocket only — avoids sticky-session issues on Render free tier
-  transports:         ['websocket'],
-  allowUpgrades:      false,
+  pingTimeout:       30000,
+  pingInterval:      10000,
+  maxHttpBufferSize: 1e6,
+  transports:        ['websocket', 'polling'],
 });
 
 // ── MongoDB ───────────────────────────────────────────────────────
