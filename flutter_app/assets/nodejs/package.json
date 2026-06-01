@@ -1,0 +1,10 @@
+{
+  "name": "s-talk-mobile-server",
+  "version": "1.0.0",
+  "description": "S-talk embedded signaling server for mobile",
+  "main": "index.js",
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  }
+}

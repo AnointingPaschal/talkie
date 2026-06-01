@@ -1,0 +1,44 @@
+name: s_talk
+description: S-talk — Voice radio over LAN or internet
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # WebView — renders the S-talk web app
+  flutter_inappwebview: ^6.0.0
+
+  # Node.js runtime inside Flutter (runs signaling server offline)
+  flutter_nodejs_mobile: ^0.2.0
+
+  # Permissions
+  permission_handler: ^11.3.0
+
+  # Network info (WiFi SSID + signal)
+  network_info_plus: ^5.0.3
+  connectivity_plus: ^6.0.3
+
+  # Keep screen/service alive
+  wakelock_plus: ^1.2.5
+  flutter_foreground_task: ^8.0.0
+
+  # Local storage
+  shared_preferences: ^2.2.3
+
+  cupertino_icons: ^1.0.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/public/
+    - assets/nodejs/
