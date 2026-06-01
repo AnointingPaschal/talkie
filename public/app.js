@@ -193,7 +193,14 @@ function setupAnalyser() {
 // ── Socket ────────────────────────────────────────────────────────
 async function initSocket() {
   const url = await detectServer();
-  state.socket = io(url, { rejectUnauthorized: false, reconnectionDelay: 1000, reconnectionDelayMax: 5000 });
+  state.socket = io(url, {
+    rejectUnauthorized: false,
+    transports: ['websocket'],  // match server — no polling fallback
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    reconnectionAttempts: Infinity,
+    timeout: 10000,
+  });
 
   state.socket.on('connect', () => {
     setConnStatus(true);
