@@ -7,19 +7,30 @@
       "nodeDir": "nodejs"
     },
     "SplashScreen": {
-      "launchShowDuration": 1500,
-      "backgroundColor": "#060810",
-      "showSpinner": false
+      "launchShowDuration": 2000,
+      "launchAutoHide": true,
+      "backgroundColor": "#0f0f14",
+      "androidSplashResourceName": "splash",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false,
+      "splashFullScreen": true,
+      "splashImmersive": true
+    },
+    "CapacitorHttp": {
+      "enabled": true
     }
   },
   "android": {
-    "backgroundColor": "#060810",
+    "backgroundColor": "#0f0f14",
     "allowMixedContent": true,
     "captureInput": true,
-    "webContentsDebuggingEnabled": false
+    "webContentsDebuggingEnabled": false,
+    "loggingBehavior": "none",
+    "flavor": ""
   },
-  "ios": {
-    "backgroundColor": "#060810",
-    "contentInset": "automatic"
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true,
+    "allowNavigation": ["localhost", "192.168.*", "10.*", "172.*"]
   }
 }
