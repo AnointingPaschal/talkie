@@ -798,9 +798,9 @@ function renderRoster(roster) {
 
     const div = document.createElement('div');
     div.id        = 'ru-' + (m.socketId || 'off-' + m.username);
-    div.className = `flex items-center gap-2.5 p-2.5 rounded-2xl border transition-all ${
+    div.className = `flex flex-col gap-2 p-3 rounded-2xl border transition-all ${
       isOffline
-        ? 'bg-gray-50/50 dark:bg-gray-900/30 border-gray-100 dark:border-gray-800 opacity-40'
+        ? 'bg-gray-50/50 dark:bg-gray-900/30 border-gray-100 dark:border-gray-800 opacity-50'
         : 'bg-gray-50 dark:bg-gray-800/60 border-gray-100 dark:border-gray-700/60'}`;
 
     const init = (m.username[0] || '?').toUpperCase();
@@ -808,42 +808,85 @@ function renderRoster(roster) {
     const grad = gradients[m.username.charCodeAt(0) % gradients.length];
 
     div.innerHTML = `
-      <div class="user-avatar-el w-8 h-8 shrink-0 rounded-full bg-gradient-to-br ${grad} flex items-center justify-center text-xs font-bold text-white border-2 border-transparent transition-all">
-        ${escHtml(init)}
-      </div>
-      <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-1.5">
-          <span class="text-sm font-medium truncate ${isOffline ? 'line-through text-gray-400' : ''}">${escHtml(m.username)}</span>
-          ${isSelf  ? '<span class="text-[9px] px-1.5 py-px rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-500 dark:text-indigo-400 font-bold">YOU</span>' : ''}
-          ${isHost  ? '<span class="text-[9px]">👑</span>' : ''}
-          ${isCohost? '<span class="text-[9px]">⭐</span>' : ''}
-          ${isOffline ? '<span class="text-[9px] text-gray-400 font-medium">offline</span>' : ''}
+      <div class="flex items-center gap-2.5">
+        <div class="user-avatar-el w-9 h-9 shrink-0 rounded-full bg-gradient-to-br ${grad} flex items-center justify-center text-xs font-bold text-white border-2 border-transparent transition-all">
+          ${escHtml(init)}
         </div>
-        ${!isOffline && m.lastSeen ? '' : isOffline ? `<span class="text-[10px] text-gray-400">Last seen ${timeAgo(m.lastSeen)}</span>` : ''}
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="text-sm font-medium truncate ${isOffline ? 'line-through text-gray-400' : ''}">${escHtml(m.username)}</span>
+            ${isSelf   ? '<span class="text-[9px] px-1.5 py-px rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-500 dark:text-indigo-400 font-bold">YOU</span>' : ''}
+            ${isHost   ? '<span class="text-[9px] px-1.5 py-px rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 font-bold border border-amber-200 dark:border-amber-700">👑 Host</span>' : ''}
+            ${isCohost ? '<span class="text-[9px] px-1.5 py-px rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 font-bold border border-violet-200 dark:border-violet-700">⭐ Co-host</span>' : ''}
+            ${isOffline ? '<span class="text-[9px] text-gray-400 font-medium">offline</span>' : ''}
+          </div>
+          ${isOffline ? `<span class="text-[10px] text-gray-400">Last seen ${timeAgo(m.lastSeen)}</span>` : ''}
+        </div>
+        <!-- Speaking / muted indicators -->
+        <span class="muted-icon ${isMuted ? '' : 'hidden'} flex items-center justify-center w-7 h-7 rounded-full bg-rose-100 dark:bg-rose-900/30">
+          <svg viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5 text-rose-500"><path fill-rule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clip-rule="evenodd"/></svg>
+        </span>
+        <span class="user-mic-icon opacity-0 transition-opacity flex items-center justify-center w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+          <svg viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5 text-emerald-500"><path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"/></svg>
+        </span>
       </div>
-      <div class="flex items-center gap-1 shrink-0">
-        <span class="muted-icon text-xs ${isMuted ? '' : 'hidden'}">🔇</span>
-        <span class="user-mic-icon text-xs opacity-0 transition-opacity">🎙️</span>
+
+      <!-- Action buttons row -->
+      <div class="flex flex-wrap items-center gap-1.5 pl-11">
+
+        <!-- Speaking indicator -->
+        <span class="muted-icon ${isMuted ? '' : 'hidden'} flex items-center justify-center w-7 h-7 rounded-full bg-rose-100 dark:bg-rose-900/30">
+          <svg viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5 text-rose-500"><path fill-rule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clip-rule="evenodd"/></svg>
+        </span>
+        <span class="user-mic-icon opacity-0 transition-opacity flex items-center justify-center w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+          <svg viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5 text-emerald-500"><path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"/></svg>
+        </span>
+
         ${!isSelf && !isOffline && m.socketId ? `
-          <button class="dm-btn w-6 h-6 rounded-full flex items-center justify-center bg-indigo-50 dark:bg-indigo-900/30 text-indigo-500 hover:bg-indigo-100 transition" title="Private message">
-            <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3"><path d="M2 4a2 2 0 012-2h8a2 2 0 012 2v6a2 2 0 01-2 2H6l-4 2V4z"/></svg>
+          <!-- Private call button -->
+          <button class="dm-btn flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 active:scale-95 transition-all" title="Private call">
+            <svg viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5 shrink-0">
+              <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/>
+            </svg>
+            <span class="text-[10px] font-bold">Talk</span>
           </button>` : ''}
+
         ${canControl && !isSelf && m.socketId ? `
-          <div class="host-controls flex gap-1">
-            <button class="mute-btn w-6 h-6 rounded-full flex items-center justify-center ${isMuted ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-500' : 'bg-gray-100 dark:bg-gray-700 text-gray-500'} hover:opacity-80 transition" title="${isMuted ? 'Unmute' : 'Mute'}">
-              <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3"><path d="${isMuted ? 'M8 1a3 3 0 013 3v4a3 3 0 01-6 0V4a3 3 0 013-3zM5 8a3 3 0 006 0M5 13h6M8 10v3' : 'M13.5 5.5L5.5 13.5M5.5 5.5l8 8M8 1a3 3 0 013 3v4a3 3 0 01-6 0V4a3 3 0 013-3z'}"/></svg>
-            </button>
-            ${state.isHost ? `
-            <button class="cohost-btn w-6 h-6 rounded-full flex items-center justify-center ${isCohost ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-500' : 'bg-gray-100 dark:bg-gray-700 text-gray-500'} hover:opacity-80 transition" title="${isCohost ? 'Remove co-host' : 'Make co-host'}">
-              <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3"><path d="M8 1l1.5 3.5L13 5l-2.5 2.5.5 3.5L8 9.5l-3 1.5.5-3.5L3 5l3.5-.5z"/></svg>
-            </button>
-            <button class="kick-btn w-6 h-6 rounded-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition" title="Kick">
-              <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L8 6.586l2.293-2.293a1 1 0 111.414 1.414L9.414 8l2.293 2.293a1 1 0 01-1.414 1.414L8 9.414l-2.293 2.293a1 1 0 01-1.414-1.414L6.586 8 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
-            </button>` : ''}
-          </div>` : ''}
+          <!-- Mute button -->
+          <button class="mute-btn flex items-center gap-1 px-2.5 py-1.5 rounded-xl border active:scale-95 transition-all ${isMuted
+            ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-700 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100'
+            : 'bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}" title="${isMuted ? 'Unmute' : 'Mute'}">
+            ${isMuted
+              ? `<svg viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5 shrink-0"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clip-rule="evenodd"/></svg><span class="text-[10px] font-bold">Unmute</span>`
+              : `<svg viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5 shrink-0"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd"/></svg><span class="text-[10px] font-bold">Mute</span>`}
+          </button>
+
+          ${state.isHost ? `
+          <!-- Co-host button -->
+          <button class="cohost-btn flex items-center gap-1 px-2.5 py-1.5 rounded-xl border active:scale-95 transition-all ${isCohost
+            ? 'bg-violet-50 dark:bg-violet-900/30 border-violet-200 dark:border-violet-700 text-violet-600 dark:text-violet-400 hover:bg-violet-100'
+            : 'bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}" title="${isCohost ? 'Remove co-host' : 'Make co-host'}">
+            <svg viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5 shrink-0 ${isCohost ? 'text-violet-500' : 'text-amber-400'}">
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+            </svg>
+            <span class="text-[10px] font-bold">${isCohost ? 'Unhost' : 'Co-host'}</span>
+          </button>
+
+          <!-- Kick button -->
+          <button class="kick-btn flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-500 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 active:scale-95 transition-all" title="Kick from channel">
+            <svg viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5 shrink-0">
+              <path d="M11 6a3 3 0 11-6 0 3 3 0 016 0zM14 14a6 6 0 00-12 0v1h12v-1zm2.707-5.707a1 1 0 00-1.414 0L14 9.586l-1.293-1.293a1 1 0 00-1.414 1.414L12.586 11l-1.293 1.293a1 1 0 101.414 1.414L14 12.414l1.293 1.293a1 1 0 001.414-1.414L15.414 11l1.293-1.293a1 1 0 000-1.414z"/>
+            </svg>
+            <span class="text-[10px] font-bold">Kick</span>
+          </button>` : ''}` : ''}
+
         ${canControl && isOffline ? `
-          <button class="reinvite-btn w-6 h-6 rounded-full flex items-center justify-center bg-indigo-50 dark:bg-indigo-900/30 text-indigo-400 hover:bg-indigo-100 transition" title="Reinvite">
-            <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3"><path fill-rule="evenodd" d="M4 2a1 1 0 000 2v.101a5 5 0 018.001 2.566 1 1 0 01-1.885.666A3 3 0 006 5V4a1 1 0 000-2H4zm8 8a1 1 0 010-1v-.101a5 5 0 00-8.001-2.566 1 1 0 001.885-.666A3 3 0 0110 11v1a1 1 0 010 2h2z" clip-rule="evenodd"/></svg>
+          <!-- Reinvite button -->
+          <button class="reinvite-btn flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 active:scale-95 transition-all" title="Reinvite to channel">
+            <svg viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5 shrink-0">
+              <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z"/>
+            </svg>
+            <span class="text-[10px] font-bold">Reinvite</span>
           </button>` : ''}
       </div>`;
 
